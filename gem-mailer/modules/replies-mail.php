@@ -6,8 +6,8 @@
  *
  * Opties
  *   gem_mailer_settings_gem_onderwerp_reactie_relation   = ID relation Onderwerp ↔ Reacties  (bv. 9)
- *   gem_reactie-reactie_relation                         = ID relation Reactie ↔ Reactie    (bv. 15)
- *   gem_mailer_settings_gem_reactie_relation             = ID relation Post   ↔ Users       (bv. 14)
+ *   gem_mailer_settings_gem_reactie-reactie_relation     = ID relation Reactie  ↔ Reactie   (bv. 15)
+ *   gem_mailer_settings_gem_reactie_relation             = ID relation Post     ↔ Users     (bv. 14)
  *   gem_mailer_settings_reacties-reacties_email          = HTML-template
  *
  * Tags in template
@@ -21,9 +21,9 @@
  *   {{reply_permalink}}  – directe link naar nieuwe reactie
  *
  * Anti-dubbel  : _gem_reply_mail_sent   (1 mail per reactie per 60 s)
- * Triggers     : save_post  (gem-reacties) + relation/after-add-child
+ * Triggers     : save_post (gem-reacties) + relation/after-add-child
  * Retry        : één cron-poging 10 s later
- * Versie       : 1.1
+ * Versie       : 1.2 (14-05-2025)
  */
 
 if ( ! function_exists( 'gem_send_reply_mail' ) ) :
@@ -33,8 +33,8 @@ if ( ! function_exists( 'gem_send_reply_mail' ) ) :
 	function gem_chain_ids( int $start_id, int $rel_rr, int $rel_rt ): array {
 		global $wpdb;
 		$ids    = [ $start_id ];
-		$tableR = $wpdb->prefix . 'jet_rel_' . $rel_rr;
-		$tableT = $wpdb->prefix . 'jet_rel_' . $rel_rt;
+		$tableR = $wpdb->prefix . "jet_rel_{$rel_rr}";
+		$tableT = $wpdb->prefix . "jet_rel_{$rel_rt}";
 
 		while ( true ) {                                  // reactie ↗ reactie ↗ …
 			$p = $wpdb->get_var( $wpdb->prepare(
@@ -44,7 +44,7 @@ if ( ! function_exists( 'gem_send_reply_mail' ) ) :
 			if ( ! $p ) { break; }
 			$ids[] = (int) $p;
 		}
-		/* onderwerp (top parent) */
+		/* onderwerp (top-parent) */
 		$topic = $wpdb->get_var( $wpdb->prepare(
 			"SELECT parent_object_id FROM {$tableT} WHERE child_object_id=%d LIMIT 1",
 			end( $ids )
@@ -65,12 +65,19 @@ if ( ! function_exists( 'gem_send_reply_mail' ) ) :
 	function gem_send_reply_bulk( array $uids, int $topic_id, int $reply_id, string $tpl ) {
 		foreach ( $uids as $uid ) {
 			$user = get_userdata( $uid );
-			if ( ! $user || ! is_email( $user->user_email ) ) { continue; }
+			if ( ! $user ) { continue; }
 
-			$msg = str_replace(
-				[ '{{recipient_name}}', '{{post_title}}', '{{post_permalink}}',
-				  '{{site_name}}', '{{site_url}}',
-				  '{{reply_author}}', '{{reply_excerpt}}', '{{reply_permalink}}' ],
+			$body = str_replace(
+				[
+					'{{recipient_name}}',
+					'{{post_title}}',
+					'{{post_permalink}}',
+					'{{site_name}}',
+					'{{site_url}}',
+					'{{reply_author}}',
+					'{{reply_excerpt}}',
+					'{{reply_permalink}}',
+				],
 				[
 					$user->display_name,
 					get_the_title( $topic_id ),
@@ -78,7 +85,7 @@ if ( ! function_exists( 'gem_send_reply_mail' ) ) :
 					get_bloginfo( 'name' ),
 					home_url(),
 					get_the_author_meta( 'display_name', get_post_field( 'post_author', $reply_id ) ),
-					wp_trim_words( wp_strip_all_tags( get_post_field( 'post_content', $reply_id ) ), 20, '…' ),
+					wp_trim_words( wp_strip_all_tags( get_post_field( 'post_content', $reply_id ) ), 20 ),
 					get_permalink( $reply_id ),
 				],
 				$tpl
@@ -86,26 +93,41 @@ if ( ! function_exists( 'gem_send_reply_mail' ) ) :
 
 			wp_mail(
 				$user->user_email,
-				sprintf( 'Nieuwe reactie in “%s”', get_the_title( $topic_id ) ),
-				$msg,
+				sprintf( 'Nieuwe reactie op "%s"', get_the_title( $topic_id ) ),
+				$body,
 				[ 'Content-Type: text/html; charset=UTF-8' ]
 			);
 		}
 	}
 
+	/* ------------------------------------------------ core ---------- */
+
 	function gem_try_reply_mail( int $reply_id ) {
 
 		/* Dubbel-filter */
 		$last = (int) get_post_meta( $reply_id, '_gem_reply_mail_sent', true );
-		if ( $last && ( time() - $last ) < 60 ) { return; }
+		if ( $last && ( time() - $last ) < 60 ) {
+			error_log( sprintf(
+				'GEM-MAIL replies: throttle – reply %d al gemaild %d s geleden.',
+				$reply_id,
+				time() - $last
+			) );
+			return;
+		}
 
 		$rel_rt = (int) get_option( 'gem_mailer_settings_gem_onderwerp_reactie_relation', 0 );
-		$rel_rr = (int) get_option( 'gem_reactie-reactie_relation', 0 );
+		$rel_rr = (int) get_option( 'gem_mailer_settings_gem_reactie-reactie_relation', 0 );
 		$rel_ru = (int) get_option( 'gem_mailer_settings_gem_reactie_relation', 0 );
 		$template = get_option( 'gem_mailer_settings_reacties-reacties_email', '' )
 			?: '<p>Er is een nieuwe reactie in “{{post_title}}”.</p>';
 
-		if ( ! $rel_rr || ! $rel_rt ) { return; }
+		if ( ! $rel_rr || ! $rel_rt ) {
+			error_log( sprintf(
+				'GEM-MAIL replies: ontbrekende relation-IDs rr=%d, rt=%d.',
+				$rel_rr, $rel_rt
+			) );
+			return;
+		}
 
 		$chain = gem_chain_ids( $reply_id, $rel_rr, $rel_rt );
 		$topic = end( $chain );
@@ -118,32 +140,41 @@ if ( ! function_exists( 'gem_send_reply_mail' ) ) :
 
 		/* geen mail aan inzender zelf */
 		$uids = array_diff( array_unique( $uids ), [ (int) get_post_field( 'post_author', $reply_id ) ] );
-		if ( ! $uids ) { return; }
+		if ( ! $uids ) {
+			error_log( sprintf(
+				'GEM-MAIL replies: geen ontvangers voor reply %d.',
+				$reply_id
+			) );
+			return;
+		}
 
 		gem_send_reply_bulk( $uids, $topic, $reply_id, $template );
 		update_post_meta( $reply_id, '_gem_reply_mail_sent', time() );
 	}
 
-endif;
+endif; // function_exists
 
 
-/* --------- save_post + cron-retry ---------- */
-add_action( 'save_post_gem-reacties', function ( $pid, $post ) {
-	if ( wp_is_post_autosave( $pid ) || wp_is_post_revision( $pid ) ) { return; }
-	if ( 'publish' !== $post->post_status ) { return; }
+/* --------- save_post gem-reacties ---------- */
+add_action( 'save_post_gem-reacties', function ( int $pid, WP_Post $post, bool $update ) {
+	if ( wp_is_post_revision( $pid ) || defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+		return;
+	}
 
 	gem_try_reply_mail( $pid );
+
+	/* fallback cron, voor het geval mail() tijdens save_post crasht */
 	if ( ! wp_next_scheduled( 'gem_reply_retry', [ $pid ] ) ) {
 		wp_schedule_single_event( time() + 10, 'gem_reply_retry', [ $pid ] );
 	}
-}, 20, 2 );
+}, 20, 3 );
 
 add_action( 'gem_reply_retry', 'gem_try_reply_mail' );
 
 
 /* --------- relation/after-add-child ---------- */
 add_action( 'jet-engine/relation/after-add-child', function ( $rel, $parent_id, $child_id ) {
-	if ( intval( $rel->id ) === (int) get_option( 'gem_reactie-reactie_relation', 0 ) ) {
+	if ( intval( $rel->id ) === (int) get_option( 'gem_mailer_settings_gem_reactie-reactie_relation', 0 ) ) {
 		gem_try_reply_mail( $child_id );                 // child = nieuwe reply
 	}
 }, 10, 3 );
