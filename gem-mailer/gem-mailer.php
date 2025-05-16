@@ -21,9 +21,12 @@ define( 'GEM_MAILER_VER', '1.2' );
  *
  * Zet elke nieuwe module in /modules en require_once hier.
  */
+// Modules laden --------------------------------------------------------
 require_once GEM_MAILER_DIR . 'modules/reactions-mail.php';   // Reactie-notificaties
-require_once GEM_MAILER_DIR . 'modules/jfb-hook.php';
-require_once GEM_MAILER_DIR . 'modules/replies-mail.php';
+require_once GEM_MAILER_DIR . 'modules/jfb-hook.php';         // JetForm extra hook
+require_once GEM_MAILER_DIR . 'modules/replies-mail.php';     // Reactie-op-reactie
+require_once GEM_MAILER_DIR . 'modules/new-topic-mail.php';   // Nieuw onderwerp in thema   ← nieuw
+
 
 
 // ↓ toekomstige modules   
