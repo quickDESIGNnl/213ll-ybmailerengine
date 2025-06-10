@@ -8,7 +8,7 @@
  * Opties
  *   gem_mailer_settings_gem_thema_onderwerp_relation      int | int[]
  *   gem_mailer_settings_gem_thema_user_relation           int | int[]
- *   gem_mailer_settings_gem_nieuwe--onderwerp-in-thema_email   string
+ *   gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email   string
  *
  * Placeholders
  *   {{recipient_name}}, {{thema_title}}, {{topic_title}},
@@ -112,7 +112,7 @@ function gem_try_new_topic_mail( int $topic_id ): void {
 	/* ─ opties ─ */
 	$rel_to   = gem_get_option_int( 'gem_mailer_settings_gem_thema_onderwerp_relation' );
 	$rel_tu   = gem_get_option_int( 'gem_mailer_settings_gem_thema_user_relation' );
-	$template = get_option( 'gem_mailer_settings_gem_nieuwe--onderwerp-in-thema_email', '' )
+       $template = get_option( 'gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email', '' )
 		?: '<p>Nieuw onderwerp: {{topic_title}}</p>';
 
 	if ( ! $rel_to || ! $rel_tu ) {
