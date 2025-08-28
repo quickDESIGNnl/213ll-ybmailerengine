@@ -51,6 +51,7 @@ function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
 function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, string $tpl ): void {
 
 
+
                 wp_mail(
                         $user->user_email,
                         sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', $thema_name ),
