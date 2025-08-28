@@ -4,9 +4,10 @@
  * ---------------------------------------------------------------------
  * Stuurt meldingen uit wanneer er in een Thema een nieuw Onderwerp
  * wordt aangemaakt – via JetForm (front-end) én via wp-admin (back-end).
+ * Het bijbehorende hoofdonderwerp wordt bepaald via de eerste
+ * taxonomy-term die aan het onderwerp is gekoppeld.
  *
  * Opties
- *   gem_mailer_settings_gem_thema_onderwerp_relation      int | int[]
  *   gem_mailer_settings_gem_thema_user_relation           int | int[]
  *   gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email   string
  *
@@ -29,15 +30,12 @@ function gem_get_option_int( string $key ): int {
 	return (int) $raw;
 }
 
-function gem_topic_to_thema( int $topic_id, int $rel_to ): ?int {
-	global $wpdb;
-	if ( ! $rel_to ) { return null; }
-	$table = $wpdb->prefix . "jet_rel_{$rel_to}";
-	return (int) $wpdb->get_var( $wpdb->prepare(
-		"SELECT parent_object_id FROM {$table}
-		 WHERE child_object_id = %d LIMIT 1",
-		$topic_id
-	) );
+function gem_topic_to_thema( int $topic_id ): ?int {
+        $taxes = get_post_taxonomies( $topic_id );
+        if ( ! $taxes ) { return null; }
+        $terms = wp_get_post_terms( $topic_id, reset( $taxes ) );
+        if ( is_wp_error( $terms ) || empty( $terms ) ) { return null; }
+        return (int) $terms[0]->term_id;
 }
 
 function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
@@ -52,37 +50,7 @@ function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
 
 function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, string $tpl ): void {
 
-	$thema      = get_term( $thema_id );
-	$thema_name = $thema ? $thema->name : '';
 
-	$topic_author  = get_the_author_meta( 'display_name', get_post_field( 'post_author', $topic_id ) );
-	$topic_excerpt = wp_trim_words(
-		wp_strip_all_tags( get_post_field( 'post_content', $topic_id ) ),
-		30, '…'
-	);
-
-	foreach ( $uids as $uid ) {
-		$user = get_userdata( $uid );
-		if ( ! $user || ! is_email( $user->user_email ) ) { continue; }
-
-		$message = str_replace(
-			[
-				'{{recipient_name}}', '{{thema_title}}', '{{topic_title}}',
-				'{{topic_permalink}}', '{{topic_excerpt}}', '{{topic_author}}',
-				'{{site_name}}', '{{site_url}}',
-			],
-			[
-				$user->display_name,
-				$thema_name,
-				get_the_title( $topic_id ),
-				get_permalink( $topic_id ),
-				$topic_excerpt,
-				$topic_author,
-				get_bloginfo( 'name' ),
-				home_url(),
-			],
-			$tpl
-		);
 
                 wp_mail(
                         $user->user_email,
@@ -112,28 +80,25 @@ function gem_try_new_topic_mail( int $topic_id ): void {
 		return;
 	}
 
-	/* ─ opties ─ */
-	$rel_to   = gem_get_option_int( 'gem_mailer_settings_gem_thema_onderwerp_relation' );
-	$rel_tu   = gem_get_option_int( 'gem_mailer_settings_gem_thema_user_relation' );
+        /* ─ opties ─ */
+        $rel_tu   = gem_get_option_int( 'gem_mailer_settings_gem_thema_user_relation' );
        $template = get_option( 'gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email', '' )
-		?: '<p>Nieuw onderwerp: {{topic_title}}</p>';
+                ?: '<p>Nieuw onderwerp: {{topic_title}}</p>';
 
-	if ( ! $rel_to || ! $rel_tu ) {
-		error_log( 'GEM-MAIL new-topic: missing rel_to or rel_tu option.' );
-		return;
-	}
+        if ( ! $rel_tu ) {
+                error_log( 'GEM-MAIL new-topic: missing rel_tu option.' );
+                return;
+        }
 
-	/* ─ thema & ontvangers ─ */
-	$thema_id = gem_topic_to_thema( $topic_id, $rel_to );
-	if ( ! $thema_id ) {
-		error_log( "GEM-MAIL new-topic: no parent Thema found for topic {$topic_id}." );
-		return;
-	}
+        /* ─ thema & ontvangers ─ */
+        $thema_id = gem_topic_to_thema( $topic_id );
+        if ( ! $thema_id ) {
+                error_log( "GEM-MAIL new-topic: no parent Thema found for topic {$topic_id}." );
+                return;
+        }
 
-	$uids = gem_users_from_thema( $thema_id, $rel_tu );
-	$uids[] = (int) get_post_field( 'post_author', $thema_id );   // auteur Thema
-	$uids[] = (int) get_post_field( 'post_author', $topic_id );   // auteur Topic
-	$uids   = array_diff( array_unique( $uids ), [ (int) get_post_field( 'post_author', $topic_id ) ] );
+        $uids = gem_users_from_thema( $thema_id, $rel_tu );
+        $uids = array_diff( array_unique( $uids ), [ (int) get_post_field( 'post_author', $topic_id ) ] );
 
 	if ( ! $uids ) {
 		error_log( "GEM-MAIL new-topic: no recipients for topic {$topic_id}." );
