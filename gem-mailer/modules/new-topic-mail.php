@@ -4,6 +4,8 @@
  * ---------------------------------------------------------------------
  * Stuurt meldingen uit wanneer er in een Thema een nieuw Onderwerp
  * wordt aangemaakt – via JetForm (front-end) én via wp-admin (back-end).
+ * Het bijbehorende hoofdonderwerp wordt bepaald via de eerste
+ * taxonomy-term die aan het onderwerp is gekoppeld.
  *
  * Opties
  *   gem_mailer_settings_gem_thema_user_relation           int | int[]
