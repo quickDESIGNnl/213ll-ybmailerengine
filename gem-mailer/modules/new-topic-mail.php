@@ -50,36 +50,6 @@ function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
 
 function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, string $tpl ): void {
 
-        $topic_author  = get_the_author_meta( 'display_name', get_post_field( 'post_author', $topic_id ) );
-        $topic_excerpt = wp_trim_words(
-                wp_strip_all_tags( get_post_field( 'post_content', $topic_id ) ),
-                30, '…'
-        );
-        $thema       = get_term( $thema_id );
-        $thema_name  = ( $thema && ! is_wp_error( $thema ) ) ? $thema->name : '';
-
-        foreach ( $uids as $uid ) {
-                $user = get_userdata( $uid );
-                if ( ! $user || ! is_email( $user->user_email ) ) { continue; }
-
-                $message = str_replace(
-                        [
-                                '{{recipient_name}}', '{{thema_title}}', '{{topic_title}}',
-                                '{{topic_permalink}}', '{{topic_excerpt}}', '{{topic_author}}',
-                                '{{site_name}}', '{{site_url}}',
-                        ],
-                        [
-                                $user->display_name,
-                                $thema_name,
-                                get_the_title( $topic_id ),
-                                get_permalink( $topic_id ),
-                                $topic_excerpt,
-                                $topic_author,
-                                get_bloginfo( 'name' ),
-                                home_url(),
-                        ],
-                        $tpl
-                );
 
                 wp_mail(
                         $user->user_email,
