@@ -81,13 +81,13 @@ function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, str
 			$tpl
 		);
 
-		wp_mail(
-			$user->user_email,
-			sprintf( 'Nieuw onderwerp in “%s”', get_the_title( $thema_id ) ),
-			$message,
-			[ 'Content-Type: text/html; charset=UTF-8' ]
-		);
-	}
+                wp_mail(
+                        $user->user_email,
+                        sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', get_the_title( $thema_id ) ),
+                        $message,
+                        [ 'Content-Type: text/html; charset=UTF-8' ]
+                );
+        }
 }
 
 function gem_try_new_topic_mail( int $topic_id ): void {
