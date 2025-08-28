@@ -52,14 +52,13 @@ function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, str
 
 
 
-                wp_mail(
-                        $user->user_email,
-                        sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', $thema_name ),
-                        $message,
-                        [ 'Content-Type: text/html; charset=UTF-8' ]
-                );
-        }
-}
+               wp_mail(
+                       $user->user_email,
+                       sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', $thema_name ),
+                       $message,
+                       [ 'Content-Type: text/html; charset=UTF-8' ]
+               );
+       }
 
 function gem_try_new_topic_mail( int $topic_id ): void {
 
@@ -97,8 +96,14 @@ function gem_try_new_topic_mail( int $topic_id ): void {
                 return;
         }
 
-        $uids = gem_users_from_thema( $thema_id, $rel_tu );
-        $uids = array_diff( array_unique( $uids ), [ (int) get_post_field( 'post_author', $topic_id ) ] );
+       $uids = gem_users_from_thema( $thema_id, $rel_tu );
+       $uids = array_diff(
+               array_unique( $uids ),
+               array_filter([
+                       (int) get_post_field( 'post_author', $topic_id ),
+                       (int) get_term_meta( $thema_id, 'author', true ),
+               ])
+       );
 
 	if ( ! $uids ) {
 		error_log( "GEM-MAIL new-topic: no recipients for topic {$topic_id}." );
