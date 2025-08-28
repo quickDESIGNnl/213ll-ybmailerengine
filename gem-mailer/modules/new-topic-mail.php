@@ -52,6 +52,9 @@ function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
 
 function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, string $tpl ): void {
 
+	$thema      = get_term( $thema_id );
+	$thema_name = $thema ? $thema->name : '';
+
 	$topic_author  = get_the_author_meta( 'display_name', get_post_field( 'post_author', $topic_id ) );
 	$topic_excerpt = wp_trim_words(
 		wp_strip_all_tags( get_post_field( 'post_content', $topic_id ) ),
@@ -70,7 +73,7 @@ function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, str
 			],
 			[
 				$user->display_name,
-				get_the_title( $thema_id ),
+				$thema_name,
 				get_the_title( $topic_id ),
 				get_permalink( $topic_id ),
 				$topic_excerpt,
@@ -83,7 +86,7 @@ function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, str
 
                 wp_mail(
                         $user->user_email,
-                        sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', get_the_title( $thema_id ) ),
+                        sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', $thema_name ),
                         $message,
                         [ 'Content-Type: text/html; charset=UTF-8' ]
                 );
