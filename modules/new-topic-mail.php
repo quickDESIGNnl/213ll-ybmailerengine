@@ -8,7 +8,8 @@
  * taxonomy-term die aan het onderwerp is gekoppeld.
  *
  * Opties
- *   gem_mailer_settings_gem_thema_user_relation           int | int[]
+ *   gem_mailer_settings_gem_thema_onderwerp_relation     int
+ *   gem_mailer_settings_gem_thema_user_relation          int | int[]
  *   gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email   string
  *
  * Placeholders
@@ -30,15 +31,26 @@ function gem_get_option_int( string $key ): int {
 	return (int) $raw;
 }
 
-function gem_topic_to_thema( int $topic_id ): ?int {
-        $taxes = get_post_taxonomies( $topic_id );
+function gem_topic_to_thema( int $topic_id, int $rel_to ): ?int {
+        global $wpdb;
+        if ( ! $rel_to ) { return null; }
+
+        $parent = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT parent_object_id FROM {$wpdb->prefix}jet_rel_{$rel_to} WHERE child_object_id = %d",
+                $topic_id
+        ) );
+        if ( ! $parent ) { return null; }
+
+        $taxes = get_post_taxonomies( $parent );
         if ( ! $taxes ) { return null; }
+
         foreach ( $taxes as $tax ) {
-                $terms = wp_get_post_terms( $topic_id, $tax );
+                $terms = wp_get_post_terms( $parent, $tax );
                 if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
                         return (int) $terms[0]->term_id;
                 }
         }
+
         return null;
 }
 
@@ -128,9 +140,15 @@ function gem_try_new_topic_mail( int $topic_id ): void {
 	}
 
         /* ─ opties ─ */
+        $rel_to   = gem_get_option_int( 'gem_mailer_settings_gem_thema_onderwerp_relation' );
         $rel_tu   = gem_get_option_int( 'gem_mailer_settings_gem_thema_user_relation' );
        $template = get_option( 'gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email', '' )
                 ?: '<p>Nieuw onderwerp: {{topic_title}}</p>';
+
+        if ( ! $rel_to ) {
+                error_log( 'GEM-MAIL new-topic: missing rel_to option.' );
+                return;
+        }
 
         if ( ! $rel_tu ) {
                 error_log( 'GEM-MAIL new-topic: missing rel_tu option.' );
@@ -138,11 +156,13 @@ function gem_try_new_topic_mail( int $topic_id ): void {
         }
 
         /* ─ thema & ontvangers ─ */
-        $thema_id = gem_topic_to_thema( $topic_id );
+        $thema_id = gem_topic_to_thema( $topic_id, $rel_to );
         if ( ! $thema_id ) {
-                error_log( "GEM-MAIL new-topic: no parent Thema found for topic {$topic_id}." );
+                error_log( "GEM-MAIL new-topic: no parent Thema found for topic {$topic_id} via rel_to {$rel_to}." );
                 return;
         }
+
+       error_log( "GEM-MAIL new-topic: Thema {$thema_id} via rel_to {$rel_to}." );
 
        $uids = gem_users_from_thema( $thema_id, $rel_tu );
        $uids = array_diff(
