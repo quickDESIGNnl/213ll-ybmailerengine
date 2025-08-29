@@ -21,6 +21,12 @@
  * Cron     : gem_new_topic_retry        – één her-poging 10 s later
  */
 
+if ( ! function_exists( 'gem_log' ) ) {
+        function gem_log( string $msg ): void {
+                error_log( 'GEM-MAIL new-topic: ' . $msg );
+        }
+}
+
 if ( ! function_exists( 'gem_try_new_topic_mail' ) ) :   /* guard */
 
 /* ───────────── helpers ───────────── */
@@ -58,17 +64,19 @@ function gem_topic_to_themas( int $topic_id, int $rel_to ): array {
  * the future to support multiple themes.
  */
 function gem_topic_to_thema( int $topic_id, int $rel_to ): ?int {
+
         $thema_ids = gem_topic_to_themas( $topic_id, $rel_to );
         if ( ! $thema_ids ) { return null; }
 
         error_log( 'GEM-MAIL new-topic: parent Thema IDs ' . implode( ',', $thema_ids ) );
 
         return $thema_ids[0];
+
 }
 
 function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
-	global $wpdb;
-	if ( ! $rel_tu ) { return []; }
+        global $wpdb;
+        if ( ! $rel_tu ) { return []; }
 	return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
 		"SELECT child_object_id FROM {$wpdb->prefix}jet_rel_{$rel_tu}
 		 WHERE parent_object_id = %d",
@@ -94,6 +102,7 @@ function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, str
                 '…'
         );
         $topic_author    = get_the_author_meta( 'display_name', get_post_field( 'post_author', $topic_id ) );
+        $fail_count      = 0;
 
         foreach ( $uids as $uid ) {
                 $user = get_userdata( $uid );
@@ -123,33 +132,43 @@ function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, str
                         $tpl
                 );
 
-                wp_mail(
+                $subject = sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', $thema_name );
+                $success = wp_mail(
                         $user->user_email,
-                        sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', $thema_name ),
+                        $subject,
                         $message,
                         [ 'Content-Type: text/html; charset=UTF-8' ]
                 );
+
+                if ( ! $success ) {
+                        $fail_count++;
+                        error_log( sprintf( 'GEM-MAIL new-topic: failed to send to user %d – subject "%s"', $uid, $subject ) );
+                }
+        }
+
+        if ( $fail_count ) {
+                error_log( sprintf( 'GEM-MAIL new-topic: %d mail(s) failed for topic %d', $fail_count, $topic_id ) );
         }
 }
 
 function gem_try_new_topic_mail( int $topic_id ): void {
 
-	error_log( "GEM-MAIL new-topic: gem_try_new_topic_mail({$topic_id})" );
+        gem_log( "gem_try_new_topic_mail({$topic_id})" );
 
-	if ( ! $topic_id ) {
-		error_log( 'GEM-MAIL new-topic: aborted – topic_id is 0.' );
-		return;
-	}
+        if ( ! $topic_id ) {
+                gem_log( 'aborted – topic_id is 0.' );
+                return;
+        }
 
 	/* ─ throttle ─ */
 	$last = (int) get_post_meta( $topic_id, '_gem_new_topic_mail_sent', true );
-	if ( $last && ( time() - $last ) < 60 ) {
-		error_log( sprintf(
-			'GEM-MAIL new-topic: throttle – topic %d already mailed %d s ago.',
-			$topic_id, time() - $last
-		) );
-		return;
-	}
+        if ( $last && ( time() - $last ) < 60 ) {
+                gem_log( sprintf(
+                        'throttle – topic %d already mailed %d s ago.',
+                        $topic_id, time() - $last
+                ) );
+                return;
+        }
 
         /* ─ opties ─ */
         $rel_to   = gem_get_option_int( 'gem_mailer_settings_gem_thema_onderwerp_relation' );
@@ -158,23 +177,23 @@ function gem_try_new_topic_mail( int $topic_id ): void {
                 ?: '<p>Nieuw onderwerp: {{topic_title}}</p>';
 
         if ( ! $rel_to ) {
-                error_log( 'GEM-MAIL new-topic: missing rel_to option.' );
+                gem_log( 'missing rel_to option.' );
                 return;
         }
 
         if ( ! $rel_tu ) {
-                error_log( 'GEM-MAIL new-topic: missing rel_tu option.' );
+                gem_log( 'missing rel_tu option.' );
                 return;
         }
 
         /* ─ thema & ontvangers ─ */
         $thema_ids = gem_topic_to_themas( $topic_id, $rel_to );
         if ( ! $thema_ids ) {
-                error_log( "GEM-MAIL new-topic: no parent Thema found for topic {$topic_id} via rel_to {$rel_to}." );
+                gem_log( "no parent Thema found for topic {$topic_id} via rel_to {$rel_to}." );
                 return;
         }
 
-       error_log( "GEM-MAIL new-topic: Themas " . implode( ',', $thema_ids ) . " via rel_to {$rel_to}." );
+       gem_log( "Themas " . implode( ',', $thema_ids ) . " via rel_to {$rel_to}." );
 
        $sent = [];
        foreach ( $thema_ids as $thema_id ) {
@@ -195,13 +214,13 @@ function gem_try_new_topic_mail( int $topic_id ): void {
        }
 
         if ( ! $sent ) {
-                error_log( "GEM-MAIL new-topic: no recipients for topic {$topic_id}." );
+                gem_log( "no recipients for topic {$topic_id}." );
                 return;
         }
 
         update_post_meta( $topic_id, '_gem_new_topic_mail_sent', time() );
 
-        error_log( "GEM-MAIL new-topic: mail sent for topic {$topic_id} to " . implode( ',', $sent ) );
+        gem_log( "mail sent for topic {$topic_id} to " . implode( ',', $sent ) );
 }
 
 endif;  /* end guard */
@@ -212,7 +231,7 @@ endif;  /* end guard */
 /* 1️⃣  FRONT-END – JetForm “Call a Hook” */
 add_action( 'gem_new_topic_mail', function ( ...$args ) {
 
-	error_log( 'GEM-MAIL new-topic: gem_new_topic_mail hook fired. Args: ' . print_r( $args, true ) );
+        gem_log( 'gem_new_topic_mail hook fired. Args: ' . print_r( $args, true ) );
 
 	$topic_id = 0;
 
@@ -226,10 +245,10 @@ add_action( 'gem_new_topic_mail', function ( ...$args ) {
 		}
 	}
 
-	if ( ! $topic_id ) {
-		error_log( 'GEM-MAIL new-topic: abort – no topic_id extracted.' );
-		return;
-	}
+        if ( ! $topic_id ) {
+                gem_log( 'abort – no topic_id extracted.' );
+                return;
+        }
 
 	gem_try_new_topic_mail( $topic_id );
 
@@ -242,7 +261,7 @@ add_action( 'gem_new_topic_mail', function ( ...$args ) {
 /* 2️⃣  BACK-END – publish/update (front-end nu óók toegestaan) */
 add_action( 'save_post_forums', function ( $pid, $post ) {
 
-        error_log( "GEM-MAIL new-topic: save_post_forums for post {$pid}" );
+        gem_log( "save_post_forums for post {$pid}" );
 
 	if ( wp_is_post_autosave( $pid ) || wp_is_post_revision( $pid ) ) { return; }
 	if ( 'publish' !== $post->post_status ) { return; }
