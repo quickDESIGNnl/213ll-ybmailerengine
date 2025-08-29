@@ -33,9 +33,13 @@ function gem_get_option_int( string $key ): int {
 function gem_topic_to_thema( int $topic_id ): ?int {
         $taxes = get_post_taxonomies( $topic_id );
         if ( ! $taxes ) { return null; }
-        $terms = wp_get_post_terms( $topic_id, reset( $taxes ) );
-        if ( is_wp_error( $terms ) || empty( $terms ) ) { return null; }
-        return (int) $terms[0]->term_id;
+        foreach ( $taxes as $tax ) {
+                $terms = wp_get_post_terms( $topic_id, $tax );
+                if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                        return (int) $terms[0]->term_id;
+                }
+        }
+        return null;
 }
 
 function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
