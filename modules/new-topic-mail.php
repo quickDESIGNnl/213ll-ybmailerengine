@@ -78,6 +78,7 @@ function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, str
                 '…'
         );
         $topic_author    = get_the_author_meta( 'display_name', get_post_field( 'post_author', $topic_id ) );
+        $fail_count      = 0;
 
         foreach ( $uids as $uid ) {
                 $user = get_userdata( $uid );
@@ -107,12 +108,22 @@ function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, str
                         $tpl
                 );
 
-                wp_mail(
+                $subject = sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', $thema_name );
+                $success = wp_mail(
                         $user->user_email,
-                        sprintf( 'Nieuw onderwerp binnen hoofdonderwerp “%s”', $thema_name ),
+                        $subject,
                         $message,
                         [ 'Content-Type: text/html; charset=UTF-8' ]
                 );
+
+                if ( ! $success ) {
+                        $fail_count++;
+                        error_log( sprintf( 'GEM-MAIL new-topic: failed to send to user %d – subject "%s"', $uid, $subject ) );
+                }
+        }
+
+        if ( $fail_count ) {
+                error_log( sprintf( 'GEM-MAIL new-topic: %d mail(s) failed for topic %d', $fail_count, $topic_id ) );
         }
 }
 
