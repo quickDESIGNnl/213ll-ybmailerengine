@@ -64,12 +64,14 @@ function gem_topic_to_themas( int $topic_id, int $rel_to ): array {
  * the future to support multiple themes.
  */
 function gem_topic_to_thema( int $topic_id, int $rel_to ): ?int {
-       $thema_ids = gem_topic_to_themas( $topic_id, $rel_to );
-       if ( ! $thema_ids ) { return null; }
 
-       error_log( 'GEM-MAIL new-topic: parent Thema IDs ' . implode( ',', $thema_ids ) );
+        $thema_ids = gem_topic_to_themas( $topic_id, $rel_to );
+        if ( ! $thema_ids ) { return null; }
 
-       return $thema_ids[0];
+        error_log( 'GEM-MAIL new-topic: parent Thema IDs ' . implode( ',', $thema_ids ) );
+
+        return $thema_ids[0];
+
 }
 
 function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
