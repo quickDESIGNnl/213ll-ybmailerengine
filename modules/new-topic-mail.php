@@ -197,9 +197,9 @@ add_action( 'gem_new_topic_mail', function ( ...$args ) {
 
 
 /* 2️⃣  BACK-END – publish/update (front-end nu óók toegestaan) */
-add_action( 'save_post_gem-onderwerpen', function ( $pid, $post ) {
+add_action( 'save_post_forums', function ( $pid, $post ) {
 
-	error_log( "GEM-MAIL new-topic: save_post_gem-onderwerpen for post {$pid}" );
+        error_log( "GEM-MAIL new-topic: save_post_forums for post {$pid}" );
 
 	if ( wp_is_post_autosave( $pid ) || wp_is_post_revision( $pid ) ) { return; }
 	if ( 'publish' !== $post->post_status ) { return; }
