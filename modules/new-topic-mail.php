@@ -50,6 +50,11 @@ function gem_topic_to_themas( int $topic_id, int $rel_to ): array {
         return array_map( 'intval', $terms );
 }
 
+function gem_topic_to_thema( int $topic_id, int $rel_to ): int {
+        $ids = gem_topic_to_themas( $topic_id, $rel_to );
+        return $ids[0] ?? 0;
+}
+
 function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
 	global $wpdb;
 	if ( ! $rel_tu ) { return []; }
