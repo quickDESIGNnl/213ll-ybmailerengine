@@ -48,6 +48,14 @@ function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
 	) ) );
 }
 
+/**
+ * Send a templated email to all users connected to a Thema.
+ *
+ * @param array $uids     User IDs.
+ * @param int   $thema_id The theme term ID.
+ * @param int   $topic_id The topic post ID.
+ * @param string $tpl     HTML mail template.
+ */
 function gem_send_new_topic_bulk( array $uids, int $thema_id, int $topic_id, string $tpl ): void {
         $thema_name      = get_term( $thema_id )->name;
         $topic_title     = get_the_title( $topic_id );
