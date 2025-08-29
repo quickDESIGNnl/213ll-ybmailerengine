@@ -4,6 +4,8 @@
  * Description : Verzamel-plugin die losse mail-modules laadt (Reacties enz.).
  * Version     : 1.2
  * Author      : QuickDesign
+ * Text Domain: gem-mailer
+ * Domain Path: /languages
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
