@@ -31,27 +31,23 @@ function gem_get_option_int( string $key ): int {
 	return (int) $raw;
 }
 
-function gem_topic_to_thema( int $topic_id, int $rel_to ): ?int {
+function gem_topic_to_themas( int $topic_id, int $rel_to ): array {
         global $wpdb;
-        if ( ! $rel_to ) { return null; }
+        if ( ! $rel_to ) { return []; }
 
         $parent = (int) $wpdb->get_var( $wpdb->prepare(
                 "SELECT parent_object_id FROM {$wpdb->prefix}jet_rel_{$rel_to} WHERE child_object_id = %d",
                 $topic_id
         ) );
-        if ( ! $parent ) { return null; }
+        if ( ! $parent ) { return []; }
 
         $taxes = get_post_taxonomies( $parent );
-        if ( ! $taxes ) { return null; }
+        if ( ! $taxes ) { return []; }
 
-        foreach ( $taxes as $tax ) {
-                $terms = wp_get_post_terms( $parent, $tax );
-                if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
-                        return (int) $terms[0]->term_id;
-                }
-        }
+        $terms = wp_get_object_terms( $parent, $taxes, [ 'fields' => 'ids' ] );
+        if ( is_wp_error( $terms ) || ! $terms ) { return []; }
 
-        return null;
+        return array_map( 'intval', $terms );
 }
 
 function gem_users_from_thema( int $thema_id, int $rel_tu ): array {
@@ -156,33 +152,40 @@ function gem_try_new_topic_mail( int $topic_id ): void {
         }
 
         /* ─ thema & ontvangers ─ */
-        $thema_id = gem_topic_to_thema( $topic_id, $rel_to );
-        if ( ! $thema_id ) {
+        $thema_ids = gem_topic_to_themas( $topic_id, $rel_to );
+        if ( ! $thema_ids ) {
                 error_log( "GEM-MAIL new-topic: no parent Thema found for topic {$topic_id} via rel_to {$rel_to}." );
                 return;
         }
 
-       error_log( "GEM-MAIL new-topic: Thema {$thema_id} via rel_to {$rel_to}." );
+       error_log( "GEM-MAIL new-topic: Themas " . implode( ',', $thema_ids ) . " via rel_to {$rel_to}." );
 
-       $uids = gem_users_from_thema( $thema_id, $rel_tu );
-       $uids = array_diff(
-               array_unique( $uids ),
-               array_filter([
-                       (int) get_post_field( 'post_author', $topic_id ),
-                       (int) get_term_meta( $thema_id, 'author', true ),
-               ])
-       );
+       $sent = [];
+       foreach ( $thema_ids as $thema_id ) {
+               $uids = gem_users_from_thema( $thema_id, $rel_tu );
+               $uids = array_diff(
+                       array_unique( $uids ),
+                       $sent,
+                       array_filter([
+                               (int) get_post_field( 'post_author', $topic_id ),
+                               (int) get_term_meta( $thema_id, 'author', true ),
+                       ])
+               );
 
-	if ( ! $uids ) {
-		error_log( "GEM-MAIL new-topic: no recipients for topic {$topic_id}." );
-		return;
-	}
+               if ( ! $uids ) { continue; }
 
-	/* ─ verstuur ─ */
-	gem_send_new_topic_bulk( $uids, $thema_id, $topic_id, $template );
-	update_post_meta( $topic_id, '_gem_new_topic_mail_sent', time() );
+               gem_send_new_topic_bulk( $uids, $thema_id, $topic_id, $template );
+               $sent = array_merge( $sent, $uids );
+       }
 
-	error_log( "GEM-MAIL new-topic: mail sent for topic {$topic_id} to " . implode( ',', $uids ) );
+        if ( ! $sent ) {
+                error_log( "GEM-MAIL new-topic: no recipients for topic {$topic_id}." );
+                return;
+        }
+
+        update_post_meta( $topic_id, '_gem_new_topic_mail_sent', time() );
+
+        error_log( "GEM-MAIL new-topic: mail sent for topic {$topic_id} to " . implode( ',', $sent ) );
 }
 
 endif;  /* end guard */
