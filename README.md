@@ -5,3 +5,7 @@ GEM Mailer is a WordPress plugin that powers email notifications for new topics 
 ## Contributors
 
 - cfreer
+
+## License
+
+This project is licensed under the [GNU General Public License v2 or later](LICENSE).
