@@ -1,39 +1,28 @@
 <?php
 /**
  * Plugin Name: GEM Mailer
- * Description : Verzamel-plugin die losse mail-modules laadt (Reacties enz.).
- * Version     : 1.2
- * Author      : QuickDesign
+ * Description: Mailer-engine voor JetEngine forums; verstuurt notificaties bij nieuwe onderwerpen, reacties en replies.
+ * Version: 2.0.0
+ * Author: QuickDesign
  * Text Domain: gem-mailer
  * Domain Path: /languages
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+    exit;
 }
 
-/**
- * Basis-constanten
- */
 define( 'GEM_MAILER_DIR', plugin_dir_path( __FILE__ ) );
-define( 'GEM_MAILER_VER', '1.2' );
+
+gem_mailer_bootstrap();
 
 /**
- * Modules laden
- *
- * Zet elke nieuwe module in /modules en require_once hier.
+ * Bootstrap the plugin components.
  */
-// Gemeenschappelijke helpers ------------------------------------------
-require_once GEM_MAILER_DIR . 'includes/options.php';
-
-// Modules laden --------------------------------------------------------
-require_once GEM_MAILER_DIR . 'modules/reactions-mail.php';   // Reactie-notificaties
-require_once GEM_MAILER_DIR . 'modules/jfb-hook.php';         // JetForm extra hook
-require_once GEM_MAILER_DIR . 'modules/replies-mail.php';     // Reactie-op-reactie
-require_once GEM_MAILER_DIR . 'modules/new-topic-mail.php';   // Nieuw onderwerp in thema   ← nieuw
-
-
-
-// ↓ toekomstige modules   
-// require_once GEM_MAILER_DIR . 'modules/thema-mail.php';
-// require_once GEM_MAILER_DIR . 'modules/anders-mail.php';
+function gem_mailer_bootstrap(): void {
+    require_once GEM_MAILER_DIR . 'includes/constants.php';
+    require_once GEM_MAILER_DIR . 'includes/helpers.php';
+    require_once GEM_MAILER_DIR . 'includes/admin/settings-page.php';
+    require_once GEM_MAILER_DIR . 'includes/mailers/new-topic.php';
+    require_once GEM_MAILER_DIR . 'includes/mailers/topic-reaction.php';
+}
