@@ -21,6 +21,10 @@
  * Cron     : gem_new_topic_retry        – één her-poging 10 s later
  */
 
+if ( ! function_exists( 'gem_mailer_get_option_int' ) ) {
+        require_once __DIR__ . '/../includes/options.php';
+}
+
 if ( ! function_exists( 'gem_log' ) ) {
         function gem_log( string $msg ): void {
                 error_log( 'GEM-MAIL new-topic: ' . $msg );
