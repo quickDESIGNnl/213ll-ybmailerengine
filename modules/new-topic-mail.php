@@ -10,7 +10,7 @@
  * Opties
  *   gem_mailer_settings_gem_thema_onderwerp_relation     int
  *   gem_mailer_settings_gem_thema_user_relation          int | int[]
- *   gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email   string
+ *   gem_mailer_settings_gem_nieuw_onderwerp_in_thema_email    string
  *
  * Placeholders
  *   {{recipient_name}}, {{thema_title}}, {{topic_title}},

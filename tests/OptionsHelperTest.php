@@ -32,4 +32,36 @@ class OptionsHelperTest extends WP_UnitTestCase {
 
         $this->assertSame( $expected, gem_mailer_get_option( GEM_MAILER_OPT_TEMPLATE_REACTIE, '' ) );
     }
+
+    public function test_alias_for_new_topic_template_is_resolved(): void {
+        delete_option( GEM_MAILER_OPT_TEMPLATE_TOPIC );
+        $legacy_key = 'gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email';
+        delete_option( $legacy_key );
+
+        $expected = '<p>Nieuw onderwerp</p>';
+        update_option( $legacy_key, $expected );
+
+        $this->assertSame( $expected, gem_mailer_get_option( GEM_MAILER_OPT_TEMPLATE_TOPIC, '' ) );
+    }
+
+    public function test_alias_for_reply_relation_is_resolved(): void {
+        delete_option( GEM_MAILER_OPT_REL_REPLY_REACTIE );
+        $legacy_key = 'gem_mailer_settings_gem_reactie-reactie_relation';
+        delete_option( $legacy_key );
+
+        update_option( $legacy_key, 123 );
+
+        $this->assertSame( 123, gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REPLY_REACTIE ) );
+    }
+
+    public function test_alias_for_reply_template_is_resolved(): void {
+        delete_option( GEM_MAILER_OPT_TEMPLATE_REPLY );
+        $legacy_key = 'gem_mailer_settings_reacties-reacties_email';
+        delete_option( $legacy_key );
+
+        $expected = '<p>Reply</p>';
+        update_option( $legacy_key, $expected );
+
+        $this->assertSame( $expected, gem_mailer_get_option( GEM_MAILER_OPT_TEMPLATE_REPLY, '' ) );
+    }
 }

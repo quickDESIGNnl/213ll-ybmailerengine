@@ -5,6 +5,10 @@
  *                maar NIET de auteur van de actuele reactie.
  */
 
+if ( ! function_exists( 'gem_mailer_get_option_int' ) ) {
+        require_once __DIR__ . '/../includes/options.php';
+}
+
 if ( ! function_exists( 'gem_notify_mail' ) ) :
 
 	/* -------------------- helpers -------------------- */
