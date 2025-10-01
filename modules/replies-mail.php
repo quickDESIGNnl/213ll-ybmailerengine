@@ -126,11 +126,11 @@ if ( ! function_exists( 'gem_send_reply_mail' ) ) :
 		}
 
 		/* opties -------------------------------------------------------- */
-		$rel_rt  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_TOPIC_REACTIE );
-		$rel_rr  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REPLY_REACTIE );
-		$rel_ru  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REACTIE_USER );
-		$template = get_option( GEM_MAILER_OPT_TEMPLATE_REPLY, '' )
-			?: '<p>Er is een nieuwe reactie in “{{post_title}}”.</p>';
+                $rel_rt  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_TOPIC_REACTIE );
+                $rel_rr  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REPLY_REACTIE );
+                $rel_ru  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REACTIE_USER );
+                $template = gem_mailer_get_option( GEM_MAILER_OPT_TEMPLATE_REPLY, '' )
+                        ?: '<p>Er is een nieuwe reactie in “{{post_title}}”.</p>';
 
 		if ( ! $rel_rr || ! $rel_rt ) {
 			error_log( sprintf(

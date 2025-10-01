@@ -17,10 +17,68 @@ const GEM_MAILER_OPT_REL_REPLY_REACTIE = 'gem_mailer_settings_gem_reactie-reacti
 const GEM_MAILER_OPT_TEMPLATE_REPLY    = 'gem_mailer_settings_reacties-reacties_email';
 
 /**
+ * Known aliases for legacy or JetEngine-provided option keys.
+ */
+function gem_mailer_option_aliases(): array {
+        static $aliases = null;
+
+        if ( null === $aliases ) {
+                $aliases = [
+                        GEM_MAILER_OPT_REL_TOPIC_REACTIE => [
+                                'gem_mailer_settings_onderwerpen-gem-cpt',
+                        ],
+                ];
+
+                /**
+                 * Filter the option alias map.
+                 *
+                 * Allows third parties to register extra aliases for option keys
+                 * so the helper functions can resolve values stored under legacy
+                 * JetEngine option slugs.
+                 */
+                $aliases = apply_filters( 'gem_mailer_option_aliases', $aliases );
+        }
+
+        return $aliases;
+}
+
+/**
+ * Determine the actual option key that contains a configured value.
+ */
+function gem_mailer_resolve_option_key( string $canonical ): string {
+        $sentinel = new \stdClass();
+
+        $value = get_option( $canonical, $sentinel );
+        if ( $sentinel !== $value ) {
+                return $canonical;
+        }
+
+        $aliases = gem_mailer_option_aliases();
+
+        foreach ( $aliases[ $canonical ] ?? [] as $alias ) {
+                $value = get_option( $alias, $sentinel );
+                if ( $sentinel !== $value ) {
+                        return $alias;
+                }
+        }
+
+        return $canonical;
+}
+
+/**
+ * Retrieve a raw option value with alias support.
+ */
+function gem_mailer_get_option( string $key, $default = false ) {
+        $resolved_key = gem_mailer_resolve_option_key( $key );
+
+        return get_option( $resolved_key, $default );
+}
+
+/**
  * Retrieve an integer option value while gracefully handling JetEngine array payloads.
  */
 function gem_mailer_get_option_int( string $key ): int {
-        $raw = get_option( $key, 0 );
+        $raw = gem_mailer_get_option( $key, 0 );
         if ( is_array( $raw ) ) {
                 $raw = reset( $raw );
         }
@@ -113,7 +171,20 @@ function gem_mailer_render_settings_help(): void {
                         <tbody>
                                 <?php foreach ( $catalog as $key => $info ) : ?>
                                         <tr>
-                                                <td><code><?php echo esc_html( $key ); ?></code></td>
+                                                <td>
+                                                        <?php $display_key = gem_mailer_resolve_option_key( $key ); ?>
+                                                        <code><?php echo esc_html( $display_key ); ?></code>
+                                                        <?php if ( $display_key !== $key ) : ?>
+                                                                <p class="description">
+                                                                        <?php
+                                                                        printf(
+                                                                                wp_kses_post( __( 'Alias voor <code>%s</code>', 'gem-mailer' ) ),
+                                                                                esc_html( $key )
+                                                                        );
+                                                                        ?>
+                                                                </p>
+                                                        <?php endif; ?>
+                                                </td>
                                                 <td>
                                                         <strong><?php echo esc_html( $info['label'] ); ?></strong>
                                                         <p class="description"><?php echo esc_html( $info['description'] ); ?></p>
