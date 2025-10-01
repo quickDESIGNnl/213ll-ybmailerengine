@@ -10,7 +10,7 @@
  * Opties
  *   gem_mailer_settings_gem_thema_onderwerp_relation     int
  *   gem_mailer_settings_gem_thema_user_relation          int | int[]
- *   gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email   string
+ *   gem_mailer_settings_gem_nieuw_onderwerp_in_thema_email    string
  *
  * Placeholders
  *   {{recipient_name}}, {{thema_title}}, {{topic_title}},
@@ -20,6 +20,10 @@
  * Meta-key : _gem_new_topic_mail_sent   – throttle 60 s
  * Cron     : gem_new_topic_retry        – één her-poging 10 s later
  */
+
+if ( ! function_exists( 'gem_mailer_get_option_int' ) ) {
+        require_once __DIR__ . '/../includes/options.php';
+}
 
 if ( ! function_exists( 'gem_log' ) ) {
         function gem_log( string $msg ): void {
@@ -165,7 +169,7 @@ function gem_try_new_topic_mail( int $topic_id ): void {
         /* ─ opties ─ */
         $rel_to   = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_THEMA_TOPIC );
         $rel_tu   = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_THEMA_USER );
-       $template = get_option( GEM_MAILER_OPT_TEMPLATE_TOPIC, '' )
+        $template = gem_mailer_get_option( GEM_MAILER_OPT_TEMPLATE_TOPIC, '' )
                 ?: '<p>Nieuw onderwerp: {{topic_title}}</p>';
 
         if ( ! $rel_to ) {
