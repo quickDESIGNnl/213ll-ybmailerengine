@@ -23,6 +23,9 @@ define( 'GEM_MAILER_VER', '1.2' );
  *
  * Zet elke nieuwe module in /modules en require_once hier.
  */
+// Gemeenschappelijke helpers ------------------------------------------
+require_once GEM_MAILER_DIR . 'includes/options.php';
+
 // Modules laden --------------------------------------------------------
 require_once GEM_MAILER_DIR . 'modules/reactions-mail.php';   // Reactie-notificaties
 require_once GEM_MAILER_DIR . 'modules/jfb-hook.php';         // JetForm extra hook

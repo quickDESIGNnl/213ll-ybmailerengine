@@ -22,7 +22,7 @@ if ( ! function_exists( 'gem_jfb_notify_parent_author' ) ) :
 			return;
 		}
 
-		$rel_id = (int) get_option( 'gem_mailer_settings_gem_onderwerp_reactie_relation', 0 );
+                $rel_id = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_TOPIC_REACTIE );
 		if ( ! $rel_id ) { return; }
 
 		global $wpdb;

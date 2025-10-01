@@ -126,10 +126,10 @@ if ( ! function_exists( 'gem_send_reply_mail' ) ) :
 		}
 
 		/* opties -------------------------------------------------------- */
-		$rel_rt  = (int) get_option( 'gem_mailer_settings_gem_onderwerp_reactie_relation', 0 );
-		$rel_rr  = (int) get_option( 'gem_mailer_settings_gem_reactie-reactie_relation', 0 );
-		$rel_ru  = (int) get_option( 'gem_mailer_settings_gem_reactie_relation', 0 );
-		$template = get_option( 'gem_mailer_settings_reacties-reacties_email', '' )
+		$rel_rt  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_TOPIC_REACTIE );
+		$rel_rr  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REPLY_REACTIE );
+		$rel_ru  = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REACTIE_USER );
+		$template = get_option( GEM_MAILER_OPT_TEMPLATE_REPLY, '' )
 			?: '<p>Er is een nieuwe reactie in “{{post_title}}”.</p>';
 
 		if ( ! $rel_rr || ! $rel_rt ) {
@@ -187,7 +187,7 @@ add_action( 'gem_reply_retry', 'gem_try_reply_mail' );
 
 /* --------- relation/after-add-child ---------------------------------- */
 add_action( 'jet-engine/relation/after-add-child', function ( $rel, $parent_id, $child_id ) {
-	if ( intval( $rel->id ) === (int) get_option( 'gem_mailer_settings_gem_reactie-reactie_relation', 0 ) ) {
+	if ( intval( $rel->id ) === gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REPLY_REACTIE ) ) {
 		gem_try_reply_mail( $child_id );     // child = nieuwe reply
 	}
 }, 10, 3 );

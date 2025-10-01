@@ -29,14 +29,6 @@ if ( ! function_exists( 'gem_log' ) ) {
 
 if ( ! function_exists( 'gem_try_new_topic_mail' ) ) :   /* guard */
 
-/* ───────────── helpers ───────────── */
-
-function gem_get_option_int( string $key ): int {
-	$raw = get_option( $key, 0 );
-	if ( is_array( $raw ) ) { $raw = reset( $raw ); }
-	return (int) $raw;
-}
-
 function gem_topic_to_themas( int $topic_id, int $rel_to ): array {
         global $wpdb;
         if ( ! $rel_to ) { return []; }
@@ -171,9 +163,9 @@ function gem_try_new_topic_mail( int $topic_id ): void {
         }
 
         /* ─ opties ─ */
-        $rel_to   = gem_get_option_int( 'gem_mailer_settings_gem_thema_onderwerp_relation' );
-        $rel_tu   = gem_get_option_int( 'gem_mailer_settings_gem_thema_user_relation' );
-       $template = get_option( 'gem_mailer_settings_gem_nieuwe_onderwerp_in_thema_email', '' )
+        $rel_to   = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_THEMA_TOPIC );
+        $rel_tu   = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_THEMA_USER );
+       $template = get_option( GEM_MAILER_OPT_TEMPLATE_TOPIC, '' )
                 ?: '<p>Nieuw onderwerp: {{topic_title}}</p>';
 
         if ( ! $rel_to ) {
