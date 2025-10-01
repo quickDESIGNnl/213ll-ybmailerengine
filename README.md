@@ -10,6 +10,10 @@ The plugin uses PHP's `error_log()` function for diagnostics. You can redirect t
 ini_set('error_log', '/path/to/gem-mailer.log');
 ```
 
+## Configuratie
+
+From WordPress 6.0 and up the plugin adds a read-only settings help page under **Settings → GEM Mailer**. The page lists every option key the modules rely on, including which JetEngine relation ID should be stored on each field (for example the relation between a Thema and its gebruikers). Use this overview to verify that the slugs in JetEngine Options Pages exactly match the expected option names.
+
 ## Contributors
 
 - cfreer

@@ -76,9 +76,9 @@ if ( ! function_exists( 'gem_notify_mail' ) ) :
 			return;
 		}
 
-		$rel_post_post = (int) get_option( 'gem_mailer_settings_gem_onderwerp_reactie_relation', 0 );
-		$rel_post_user = (int) get_option( 'gem_mailer_settings_gem_reactie_relation', 0 );
-		$template      = get_option( 'gem_mailer_settings_reacties_email', '' )
+                $rel_post_post = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_TOPIC_REACTIE );
+                $rel_post_user = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REACTIE_USER );
+                $template      = get_option( GEM_MAILER_OPT_TEMPLATE_REACTIE, '' )
 			?: '<p>Nieuwe reactie op "{{post_title}}".</p>';
 
 		if ( ! $rel_post_post ) {
@@ -145,7 +145,7 @@ add_action(
 	'jet-engine/relation/after-add-child',
 	function ( $relation, $parent_id, $child_id ) {
 
-		$config = (int) get_option( 'gem_mailer_settings_gem_onderwerp_reactie_relation', 0 );
+                $config = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_TOPIC_REACTIE );
 		if ( intval( $relation->id ) !== $config ) {
 			return;
 		}
