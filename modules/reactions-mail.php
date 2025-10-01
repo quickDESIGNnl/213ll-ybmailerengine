@@ -78,8 +78,8 @@ if ( ! function_exists( 'gem_notify_mail' ) ) :
 
                 $rel_post_post = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_TOPIC_REACTIE );
                 $rel_post_user = gem_mailer_get_option_int( GEM_MAILER_OPT_REL_REACTIE_USER );
-                $template      = get_option( GEM_MAILER_OPT_TEMPLATE_REACTIE, '' )
-			?: '<p>Nieuwe reactie op "{{post_title}}".</p>';
+                $template      = gem_mailer_get_option( GEM_MAILER_OPT_TEMPLATE_REACTIE, '' )
+                        ?: '<p>Nieuwe reactie op "{{post_title}}".</p>';
 
 		if ( ! $rel_post_post ) {
 			error_log( 'GEM-MAIL: rel_post_post optie ontbreekt.' );
