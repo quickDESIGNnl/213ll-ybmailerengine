@@ -150,7 +150,7 @@ class SettingsPage {
         return [
             'new-topic' => [
                 'label'       => __( 'Nieuw onderwerp in Forum-tax', 'gem-mailer' ),
-                'description' => __( 'Selecteer de forum-taxonomy, de JetEngine relaties en stel het e-mailtemplate in voor een nieuw onderwerp.', 'gem-mailer' ),
+                'description' => __( 'Selecteer de forum-taxonomy, het custom post type voor forumonderwerpen, de JetEngine relaties en stel het e-mailtemplate in voor een nieuw onderwerp.', 'gem-mailer' ),
                 'fields'      => [
                     [
                         'type'        => 'select',
@@ -158,6 +158,14 @@ class SettingsPage {
                         'label'       => __( 'Forum-taxonomy', 'gem-mailer' ),
                         'description' => __( 'Kies de taxonomy waarin de forumonderwerpen worden gepubliceerd.', 'gem-mailer' ),
                         'choices'     => $taxonomy_choices,
+                        'sanitize'    => 'sanitize_key',
+                    ],
+                    [
+                        'type'        => 'select',
+                        'option'      => Settings::OPT_TOPIC_CPT,
+                        'label'       => __( 'Onderwerpen (CPT)', 'gem-mailer' ),
+                        'description' => __( 'De custom post type waarin forumonderwerpen/discussies worden opgeslagen. Deze instelling wordt gedeeld met de tab voor reacties.', 'gem-mailer' ),
+                        'choices'     => $post_type_choices,
                         'sanitize'    => 'sanitize_key',
                     ],
                     [
@@ -206,13 +214,13 @@ class SettingsPage {
             ],
             'topic-reaction' => [
                 'label'       => __( 'Nieuwe reactie in onderwerp', 'gem-mailer' ),
-                'description' => __( 'Kies de CPT en relaties waarmee reacties aan onderwerpen en gebruikers gekoppeld worden.', 'gem-mailer' ),
+                'description' => __( 'Kies hetzelfde forumonderwerp-CPT en de relaties waarmee reacties aan onderwerpen en gebruikers gekoppeld worden.', 'gem-mailer' ),
                 'fields'      => [
                     [
                         'type'        => 'select',
                         'option'      => Settings::OPT_TOPIC_CPT,
                         'label'       => __( 'Onderwerpen (CPT)', 'gem-mailer' ),
-                        'description' => __( 'De custom post type waarin onderwerpen/discussies worden opgeslagen.', 'gem-mailer' ),
+                        'description' => __( 'De custom post type waarin forumonderwerpen/discussies worden opgeslagen. Deze instelling wordt gedeeld met de tab voor nieuwe onderwerpen.', 'gem-mailer' ),
                         'choices'     => $post_type_choices,
                         'sanitize'    => 'sanitize_key',
                     ],
