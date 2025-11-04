@@ -85,14 +85,36 @@ final class Relations {
 
         $choices = [];
 
-        if ( function_exists( 'jet_engine' ) && method_exists( jet_engine()->relations, 'query' ) ) {
-            $relations = jet_engine()->relations->query->get_relations();
-            if ( is_array( $relations ) ) {
-                foreach ( $relations as $relation ) {
-                    $id    = isset( $relation['id'] ) ? (int) $relation['id'] : 0;
-                    $label = isset( $relation['name'] ) ? $relation['name'] : ( $relation['slug'] ?? '' );
-                    if ( $id && $label ) {
-                        $choices[ $id ] = sprintf( '%s (#%d)', $label, $id );
+        if ( function_exists( 'jet_engine' ) ) {
+            $engine = jet_engine();
+
+            $relation_source = null;
+            if ( $engine && isset( $engine->relations ) && is_object( $engine->relations ) ) {
+                if ( isset( $engine->relations->manager ) && is_object( $engine->relations->manager ) && method_exists( $engine->relations->manager, 'get_relations' ) ) {
+                    $relation_source = $engine->relations->manager;
+                } elseif ( isset( $engine->relations->query ) && is_object( $engine->relations->query ) && method_exists( $engine->relations->query, 'get_relations' ) ) {
+                    $relation_source = $engine->relations->query;
+                }
+            }
+
+            if ( $relation_source ) {
+                $relations = $relation_source->get_relations();
+                if ( is_array( $relations ) ) {
+                    foreach ( $relations as $relation ) {
+                        $id    = 0;
+                        $label = '';
+
+                        if ( is_array( $relation ) ) {
+                            $id    = isset( $relation['id'] ) ? (int) $relation['id'] : 0;
+                            $label = isset( $relation['name'] ) ? $relation['name'] : ( $relation['slug'] ?? '' );
+                        } elseif ( is_object( $relation ) ) {
+                            $id    = isset( $relation->id ) ? (int) $relation->id : 0;
+                            $label = isset( $relation->name ) ? $relation->name : ( $relation->slug ?? '' );
+                        }
+
+                        if ( $id && $label ) {
+                            $choices[ $id ] = sprintf( '%s (#%d)', $label, $id );
+                        }
                     }
                 }
             }
