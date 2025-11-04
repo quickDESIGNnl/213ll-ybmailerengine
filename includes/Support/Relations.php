@@ -101,13 +101,55 @@ final class Relations {
         if ( ! $choices ) {
             global $wpdb;
 
-            $table  = $wpdb->prefix . 'jet_relations';
+            $table  = $wpdb->prefix . 'jet_post_types';
             $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
             if ( $exists ) {
-                $results = $wpdb->get_results( "SELECT id, name, slug FROM {$table} ORDER BY name" );
+                $results = $wpdb->get_results( "SELECT id, name, slug, status, labels, args FROM {$table} WHERE status = 'relation'" );
                 foreach ( $results as $relation ) {
+                    $args = isset( $relation->args ) ? $relation->args : '';
+
+                    $decoded_args = maybe_unserialize( $args );
+                    if ( is_string( $decoded_args ) ) {
+                        $json_args = json_decode( $decoded_args, true );
+                        if ( json_last_error() === JSON_ERROR_NONE ) {
+                            $decoded_args = $json_args;
+                        }
+                    }
+
+                    $relation_id = 0;
+                    if ( is_array( $decoded_args ) ) {
+                        foreach ( [ 'relation_id', 'parent_rel', 'child_rel' ] as $key ) {
+                            if ( isset( $decoded_args[ $key ] ) && is_numeric( $decoded_args[ $key ] ) ) {
+                                $relation_id = (int) $decoded_args[ $key ];
+                                break;
+                            }
+                        }
+                    }
+
+                    if ( ! $relation_id ) {
+                        $relation_id = (int) $relation->id;
+                    }
+
+                    if ( ! $relation_id ) {
+                        continue;
+                    }
+
                     $label = $relation->name ?: $relation->slug;
-                    $choices[ (int) $relation->id ] = sprintf( '%s (#%d)', $label, $relation->id );
+
+                    if ( ! $label && isset( $relation->labels ) ) {
+                        $decoded_labels = maybe_unserialize( $relation->labels );
+                        if ( is_array( $decoded_labels ) && isset( $decoded_labels['name'] ) ) {
+                            $label = (string) $decoded_labels['name'];
+                        }
+                    }
+
+                    if ( ! $label && is_array( $decoded_args ) && isset( $decoded_args['name'] ) ) {
+                        $label = (string) $decoded_args['name'];
+                    }
+
+                    if ( $label ) {
+                        $choices[ $relation_id ] = sprintf( '%s (#%d)', $label, $relation_id );
+                    }
                 }
             }
         }
