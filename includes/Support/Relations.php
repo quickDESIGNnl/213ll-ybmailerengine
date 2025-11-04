@@ -1,5 +1,3 @@
-<?php
-namespace GemMailer\Support;
 
 /**
  * Helper utilities around JetEngine relations.
@@ -87,11 +85,34 @@ final class Relations {
         if ( function_exists( 'jet_engine' ) ) {
             $engine = jet_engine();
 
-            $relations = self::relations_from_engine( $engine );
+            $relation_source = null;
+            if ( $engine && isset( $engine->relations ) && is_object( $engine->relations ) ) {
+                if ( isset( $engine->relations->manager ) && is_object( $engine->relations->manager ) && method_exists( $engine->relations->manager, 'get_relations' ) ) {
+                    $relation_source = $engine->relations->manager;
+                } elseif ( isset( $engine->relations->query ) && is_object( $engine->relations->query ) && method_exists( $engine->relations->query, 'get_relations' ) ) {
+                    $relation_source = $engine->relations->query;
+                }
+            }
 
-            foreach ( $relations as $relation ) {
-                if ( empty( $relation['id'] ) || empty( $relation['label'] ) ) {
-                    continue;
+            if ( $relation_source ) {
+                $relations = $relation_source->get_relations();
+                if ( is_array( $relations ) ) {
+                    foreach ( $relations as $relation ) {
+                        $id    = 0;
+                        $label = '';
+
+                        if ( is_array( $relation ) ) {
+                            $id    = isset( $relation['id'] ) ? (int) $relation['id'] : 0;
+                            $label = isset( $relation['name'] ) ? $relation['name'] : ( $relation['slug'] ?? '' );
+                        } elseif ( is_object( $relation ) ) {
+                            $id    = isset( $relation->id ) ? (int) $relation->id : 0;
+                            $label = isset( $relation->name ) ? $relation->name : ( $relation->slug ?? '' );
+                        }
+
+                        if ( $id && $label ) {
+                            $choices[ $id ] = sprintf( '%s (#%d)', $label, $id );
+                        }
+                    }
                 }
 
                 $choices[ (int) $relation['id'] ] = sprintf( '%s (#%d)', $relation['label'], (int) $relation['id'] );
@@ -106,12 +127,50 @@ final class Relations {
             if ( $exists ) {
                 $results = $wpdb->get_results( "SELECT id, name, slug, status, labels, args FROM {$table} WHERE status = 'relation'" );
                 foreach ( $results as $relation ) {
-                    $parsed = self::parse_relation_row( $relation );
-                    if ( ! $parsed ) {
+                    $args = isset( $relation->args ) ? $relation->args : '';
+
+                    $decoded_args = maybe_unserialize( $args );
+                    if ( is_string( $decoded_args ) ) {
+                        $json_args = json_decode( $decoded_args, true );
+                        if ( json_last_error() === JSON_ERROR_NONE ) {
+                            $decoded_args = $json_args;
+                        }
+                    }
+
+                    $relation_id = 0;
+                    if ( is_array( $decoded_args ) ) {
+                        foreach ( [ 'relation_id', 'parent_rel', 'child_rel' ] as $key ) {
+                            if ( isset( $decoded_args[ $key ] ) && is_numeric( $decoded_args[ $key ] ) ) {
+                                $relation_id = (int) $decoded_args[ $key ];
+                                break;
+                            }
+                        }
+                    }
+
+                    if ( ! $relation_id ) {
+                        $relation_id = (int) $relation->id;
+                    }
+
+                    if ( ! $relation_id ) {
                         continue;
                     }
 
-                    $choices[ $parsed['id'] ] = sprintf( '%s (#%d)', $parsed['label'], $parsed['id'] );
+                    $label = $relation->name ?: $relation->slug;
+
+                    if ( ! $label && isset( $relation->labels ) ) {
+                        $decoded_labels = maybe_unserialize( $relation->labels );
+                        if ( is_array( $decoded_labels ) && isset( $decoded_labels['name'] ) ) {
+                            $label = (string) $decoded_labels['name'];
+                        }
+                    }
+
+                    if ( ! $label && is_array( $decoded_args ) && isset( $decoded_args['name'] ) ) {
+                        $label = (string) $decoded_args['name'];
+                    }
+
+                    if ( $label ) {
+                        $choices[ $relation_id ] = sprintf( '%s (#%d)', $label, $relation_id );
+                    }
                 }
             }
         }
