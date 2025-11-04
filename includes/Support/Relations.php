@@ -13,6 +13,10 @@ final class Relations {
             return null;
         }
 
+        if ( ! isset( $GLOBALS['wpdb'] ) || ! $GLOBALS['wpdb'] instanceof \wpdb ) {
+            return null;
+        }
+
         global $wpdb;
 
         $table      = $wpdb->prefix . 'jet_rel_' . $relation_id;
@@ -117,6 +121,8 @@ final class Relations {
 
                 $choices[ (int) $relation['id'] ] = sprintf( '%s (#%d)', $relation['label'], (int) $relation['id'] );
             }
+
+            $choices[ (int) $relation['id'] ] = sprintf( '%s (#%d)', $relation['label'], (int) $relation['id'] );
         }
 
         if ( ! $choices ) {
