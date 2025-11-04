@@ -351,9 +351,18 @@ final class Relations {
             return null;
         }
 
-        return [
-            'id'    => $relation_id,
-            'label' => $label,
-        ];
+        if ( is_object( $value ) ) {
+            return self::normalise_label_value( (array) $value );
+        }
+
+        if ( is_string( $value ) ) {
+            return trim( $value );
+        }
+
+        if ( is_scalar( $value ) ) {
+            return trim( (string) $value );
+        }
+
+        return '';
     }
 }
