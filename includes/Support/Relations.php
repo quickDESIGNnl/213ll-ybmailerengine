@@ -163,10 +163,6 @@ final class Relations {
             return (array) $value;
         }
 
-        if ( is_string( $value ) && function_exists( 'wp_unslash' ) ) {
-            $value = wp_unslash( $value );
-        }
-
         if ( ! is_string( $value ) || '' === trim( $value ) ) {
             return $value;
         }
@@ -279,12 +275,7 @@ final class Relations {
             return $relations;
         }
 
-        $sql = $wpdb->prepare( "SELECT * FROM {$table} WHERE status = %s", 'relation' );
-        if ( ! $sql ) {
-            return $relations;
-        }
-
-        $results = $wpdb->get_results( $sql );
+        $results = $wpdb->get_results( "SELECT id, name, slug, status, labels, args FROM {$table} WHERE status = 'relation'" );
         if ( ! is_array( $results ) ) {
             return $relations;
         }
@@ -311,7 +302,7 @@ final class Relations {
             return null;
         }
 
-        $args         = isset( $relation->args ) ? $relation->args : '';
+        $args = isset( $relation->args ) ? $relation->args : '';
         $decoded_args = self::maybe_decode( $args );
         if ( is_object( $decoded_args ) ) {
             $decoded_args = (array) $decoded_args;
@@ -335,88 +326,29 @@ final class Relations {
             return null;
         }
 
-        $label = self::extract_label( $relation, $decoded_args );
+        $label = '';
+        if ( isset( $relation->name ) && is_string( $relation->name ) ) {
+            $label = $relation->name;
+        }
 
+        if ( '' === $label && isset( $relation->slug ) ) {
+            $label = (string) $relation->slug;
+        }
+
+        if ( '' === $label && isset( $relation->labels ) ) {
+            $decoded_labels = self::maybe_decode( $relation->labels );
+            if ( is_array( $decoded_labels ) && isset( $decoded_labels['name'] ) ) {
+                $label = (string) $decoded_labels['name'];
+            }
+        }
+
+        if ( '' === $label && is_array( $decoded_args ) && isset( $decoded_args['name'] ) ) {
+            $label = (string) $decoded_args['name'];
+        }
+
+        $label = trim( $label );
         if ( '' === $label ) {
             return null;
-        }
-
-        return [
-            'id'    => $relation_id,
-            'label' => $label,
-        ];
-    }
-
-    /**
-     * Attempt to extract a human-readable label from a relation row.
-     *
-     * @param object     $relation_row Raw relation row from the database.
-     * @param array|null $decoded_args Decoded args payload.
-     */
-    private static function extract_label( $relation_row, ?array $decoded_args ): string {
-        $candidates = [];
-
-        if ( isset( $relation_row->name ) && is_string( $relation_row->name ) ) {
-            $candidates[] = $relation_row->name;
-        }
-
-        if ( isset( $relation_row->slug ) ) {
-            $candidates[] = (string) $relation_row->slug;
-        }
-
-        if ( isset( $relation_row->label ) ) {
-            $candidates[] = self::normalise_label_value( self::maybe_decode( $relation_row->label ) );
-        }
-
-        if ( isset( $relation_row->labels ) ) {
-            $candidates[] = self::normalise_label_value( self::maybe_decode( $relation_row->labels ) );
-        }
-
-        if ( is_array( $decoded_args ) ) {
-            foreach ( [ 'label', 'name', 'singular_name', 'plural_name' ] as $key ) {
-                if ( isset( $decoded_args[ $key ] ) ) {
-                    $candidates[] = self::normalise_label_value( $decoded_args[ $key ] );
-                }
-            }
-
-            if ( isset( $decoded_args['parent_object'], $decoded_args['child_object'] ) ) {
-                $parent = self::normalise_label_value( $decoded_args['parent_object'] );
-                $child  = self::normalise_label_value( $decoded_args['child_object'] );
-                if ( $parent && $child ) {
-                    $candidates[] = sprintf( '%s -> %s', $parent, $child );
-                }
-            }
-        }
-
-        foreach ( $candidates as $candidate ) {
-            $label = self::normalise_label_value( $candidate );
-            if ( '' !== $label ) {
-                return $label;
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * Normalise a label-like value to a trimmed string.
-     *
-     * @param mixed $value Label candidate.
-     */
-    private static function normalise_label_value( $value ): string {
-        if ( is_array( $value ) ) {
-            foreach ( [ 'name', 'label', 'singular_name', 'plural_name', 'title' ] as $key ) {
-                if ( isset( $value[ $key ] ) && is_scalar( $value[ $key ] ) ) {
-                    return self::normalise_label_value( $value[ $key ] );
-                }
-            }
-
-            $first = reset( $value );
-            if ( false !== $first ) {
-                return self::normalise_label_value( $first );
-            }
-
-            return '';
         }
 
         if ( is_object( $value ) ) {
