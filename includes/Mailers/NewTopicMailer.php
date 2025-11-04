@@ -11,8 +11,16 @@ use WP_Post;
  * Dispatch notifications whenever een nieuw onderwerp gepubliceerd wordt.
  */
 class NewTopicMailer {
+    /**
+     * Queue of post IDs that need notification processing.
+     *
+     * @var array<int,int>
+     */
+    private array $queue = [];
+
     public function register(): void {
         add_action( 'transition_post_status', [ $this, 'maybe_notify' ], 10, 3 );
+        add_action( 'shutdown', [ $this, 'process_queue' ] );
     }
 
     public function maybe_notify( string $new_status, string $old_status, WP_Post $post ): void {
@@ -25,6 +33,27 @@ class NewTopicMailer {
             return;
         }
 
+        $this->queue[ $post->ID ] = $post->ID;
+    }
+
+    public function process_queue(): void {
+        if ( ! $this->queue ) {
+            return;
+        }
+
+        foreach ( $this->queue as $post_id ) {
+            $post = get_post( $post_id );
+            if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
+                continue;
+            }
+
+            $this->notify_post( $post );
+        }
+
+        $this->queue = [];
+    }
+
+    private function notify_post( WP_Post $post ): void {
         if ( get_post_meta( $post->ID, Settings::META_TOPIC_SENT, true ) ) {
             return;
         }

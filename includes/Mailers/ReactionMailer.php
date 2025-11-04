@@ -11,8 +11,16 @@ use WP_Post;
  * Verstuurt meldingen voor nieuwe reacties en replies binnen JetEngine forums.
  */
 class ReactionMailer {
+    /**
+     * Queue of reaction IDs pending notification dispatch.
+     *
+     * @var array<int,int>
+     */
+    private array $queue = [];
+
     public function register(): void {
         add_action( 'transition_post_status', [ $this, 'maybe_notify' ], 10, 3 );
+        add_action( 'shutdown', [ $this, 'process_queue' ] );
     }
 
     public function maybe_notify( string $new_status, string $old_status, WP_Post $post ): void {
@@ -25,8 +33,25 @@ class ReactionMailer {
             return;
         }
 
-        $this->notify_topic_followers( $post );
-        $this->notify_reply_followers( $post );
+        $this->queue[ $post->ID ] = $post->ID;
+    }
+
+    public function process_queue(): void {
+        if ( ! $this->queue ) {
+            return;
+        }
+
+        foreach ( $this->queue as $post_id ) {
+            $post = get_post( $post_id );
+            if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
+                continue;
+            }
+
+            $this->notify_topic_followers( $post );
+            $this->notify_reply_followers( $post );
+        }
+
+        $this->queue = [];
     }
 
     private function notify_topic_followers( WP_Post $reaction ): void {
