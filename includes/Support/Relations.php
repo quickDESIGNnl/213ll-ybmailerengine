@@ -7,6 +7,11 @@ use wpdb;
  * Helper utilities around JetEngine relations.
  */
 final class Relations {
+    private const RELATION_STATUS = 'relation';
+
+    /** @var array<int,string>|null */
+    private static $choices_cache = null;
+
     private function __construct() {}
 
     /**
@@ -99,10 +104,54 @@ final class Relations {
      * @return array<int,string>
      */
     public static function choices(): array {
-        static $cache = null;
+        if ( null !== self::$choices_cache ) {
+            return self::$choices_cache;
+        }
 
-        if ( null !== $cache ) {
-            return $cache;
+        $choices = self::collect_from_database();
+
+        foreach ( self::collect_from_runtime() as $relation_id => $label ) {
+            if ( ! isset( $choices[ $relation_id ] ) ) {
+                $choices[ $relation_id ] = $label;
+            }
+        }
+
+        if ( $choices ) {
+            uasort( $choices, static function ( string $a, string $b ): int {
+                return strnatcasecmp( $a, $b );
+            } );
+        }
+
+        return self::$choices_cache = $choices;
+    }
+
+    /**
+     * Retrieve relations from the JetEngine runtime, when available.
+     *
+     * @return array<int,string>
+     */
+    private static function collect_from_runtime(): array {
+        if ( ! function_exists( 'jet_engine' ) ) {
+            return [];
+        }
+
+        $engine = jet_engine();
+        if ( ! $engine || ! isset( $engine->relations ) || ! is_object( $engine->relations ) ) {
+            return [];
+        }
+
+        $sources = [];
+        foreach ( [ 'manager', 'query' ] as $property ) {
+            if ( isset( $engine->relations->{$property} )
+                && is_object( $engine->relations->{$property} )
+                && method_exists( $engine->relations->{$property}, 'get_relations' )
+            ) {
+                $sources[] = $engine->relations->{$property};
+            }
+        }
+
+        if ( ! $sources ) {
+            return [];
         }
 
         $choices = [];
@@ -127,11 +176,18 @@ final class Relations {
     }
 
     /**
-     * Determine whether the provided table exists in the database.
+     * Extract a human-readable label for a relation.
+     *
+     * @param array<string,mixed> $relation Raw relation row/definition.
+     * @param array<string,mixed> $args     Decoded JetEngine args payload.
      */
-    private static function table_exists( wpdb $wpdb, string $table ): bool {
-        if ( '' === $table ) {
-            return false;
+    private static function build_label( array $relation, array $args ): string {
+        $candidates = [];
+
+        foreach ( [ 'label', 'labels' ] as $column ) {
+            if ( isset( $relation[ $column ] ) ) {
+                $candidates[] = self::normalise_label_candidate( self::decode_payload( $relation[ $column ] ) );
+            }
         }
 
         $pattern = $table;
@@ -144,19 +200,33 @@ final class Relations {
             return false;
         }
 
-        return (bool) $wpdb->get_var( $query );
+        if ( '' !== $parent && '' !== $child ) {
+            $candidates[] = sprintf( '%s ↔ %s', $parent, $child );
+        } elseif ( '' !== $parent ) {
+            $candidates[] = $parent;
+        } elseif ( '' !== $child ) {
+            $candidates[] = $child;
+        }
+
+        foreach ( $candidates as $candidate ) {
+            $candidate = self::normalise_label_candidate( $candidate );
+            if ( '' !== $candidate ) {
+                return $candidate;
+            }
+        }
+
+        return '';
     }
 
     /**
-     * Decode JetEngine payloads stored as serialized PHP or JSON.
+     * Convert a JetEngine object reference into a human-readable label.
      *
-     * @param mixed $value
-     *
-     * @return mixed
+     * @param array<string,mixed> $args  Decoded JetEngine args payload.
      */
-    private static function maybe_decode( $value ) {
-        if ( is_array( $value ) ) {
-            return $value;
+    private static function describe_object( string $object, array $args, string $role ): string {
+        $object = trim( $object );
+        if ( '' === $object ) {
+            return '';
         }
 
         if ( is_object( $value ) ) {
@@ -181,44 +251,86 @@ final class Relations {
             return $unserialized;
         }
 
-        $decoded = json_decode( $value, true );
-        if ( JSON_ERROR_NONE === json_last_error() ) {
-            return $decoded;
+        if ( '' === $slug ) {
+            $slug = $object;
         }
 
-        return $value;
+        return self::humanize_slug( $slug );
     }
 
     /**
-     * Format a select option label.
+     * Determine the relation ID from a row/definition.
+     *
+     * @param array<string,mixed> $relation Raw relation row/definition.
+     * @param array<string,mixed> $args     Decoded JetEngine args payload.
      */
-    private static function format_choice( string $label, int $id ): string {
-        return sprintf( '%s (#%d)', $label, $id );
+    private static function extract_relation_id( array $relation, array $args ): int {
+        $candidates = [];
+
+        foreach ( [
+            'relation_id',
+            'relationId',
+            'id',
+            'rel_id',
+            'relId',
+            'parent_rel',
+            'child_rel',
+            'parent_rel_id',
+            'child_rel_id',
+        ] as $key ) {
+            if ( isset( $args[ $key ] ) && self::is_numeric_like( $args[ $key ] ) ) {
+                $candidates[] = (int) $args[ $key ];
+            }
+        }
+
+        if ( isset( $relation['id'] ) && self::is_numeric_like( $relation['id'] ) ) {
+            $candidates[] = (int) $relation['id'];
+        }
+
+        if ( isset( $relation['slug'] ) && is_string( $relation['slug'] ) && preg_match( '/(\d+)/', $relation['slug'], $match ) ) {
+            $candidates[] = (int) $match[1];
+        }
+
+        foreach ( $candidates as $candidate ) {
+            if ( $candidate > 0 ) {
+                return $candidate;
+            }
+        }
+
+        return 0;
     }
 
     /**
-     * Retrieve the global wpdb instance when available.
+     * Determine whether the provided table exists in the database.
      */
-    private static function db(): ?wpdb {
-        if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof wpdb ) {
-            return $GLOBALS['wpdb'];
+    private static function table_exists( wpdb $wpdb, string $table ): bool {
+        if ( '' === $table ) {
+            return false;
         }
 
-        return null;
+        $pattern = $table;
+        if ( method_exists( $wpdb, 'esc_like' ) ) {
+            $pattern = $wpdb->esc_like( $table );
+        }
+
+        $sql = $wpdb->prepare( 'SHOW TABLES LIKE %s', $pattern );
+        if ( ! $sql ) {
+            return false;
+        }
+
+        return (bool) $wpdb->get_var( $sql );
     }
 
     /**
      * Retrieve relations from JetEngine's runtime registry.
      *
-     * @param mixed $engine
+     * @param mixed $value Raw payload.
      *
-     * @return array<int,array{id:int,label:string}>
+     * @return mixed
      */
-    private static function relations_from_engine( $engine ): array {
-        $relations = [];
-
-        if ( ! $engine || ! isset( $engine->relations ) || ! is_object( $engine->relations ) ) {
-            return $relations;
+    private static function decode_payload( $value ) {
+        if ( is_array( $value ) || is_object( $value ) ) {
+            return $value;
         }
 
         $source = null;
@@ -237,17 +349,11 @@ final class Relations {
             return $relations;
         }
 
-        foreach ( $raw_relations as $relation ) {
-            $id    = 0;
-            $label = '';
+        $unserialized = function_exists( 'maybe_unserialize' ) ? maybe_unserialize( $raw ) : @unserialize( $raw ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
 
-            if ( is_array( $relation ) ) {
-                $id    = isset( $relation['id'] ) ? (int) $relation['id'] : 0;
-                $label = isset( $relation['name'] ) ? (string) $relation['name'] : (string) ( $relation['slug'] ?? '' );
-            } elseif ( is_object( $relation ) ) {
-                $id    = isset( $relation->id ) ? (int) $relation->id : 0;
-                $label = isset( $relation->name ) ? (string) $relation->name : (string) ( $relation->slug ?? '' );
-            }
+        if ( false !== $unserialized || 'b:0;' === $raw ) {
+            return $unserialized;
+        }
 
             $label = trim( $label );
 
@@ -259,7 +365,7 @@ final class Relations {
             }
         }
 
-        return $relations;
+        return $raw;
     }
 
     /**
@@ -293,9 +399,7 @@ final class Relations {
     /**
      * Normalise a database row from the jet_post_types table.
      *
-     * @param object $relation
-     *
-     * @return array{id:int,label:string}|null
+     * @param mixed $value Label candidate.
      */
     private static function parse_relation_row( $relation ): ?array {
         if ( ! is_object( $relation ) || ! isset( $relation->id ) ) {
@@ -308,14 +412,8 @@ final class Relations {
             $decoded_args = (array) $decoded_args;
         }
 
-        $relation_id = 0;
-        if ( is_array( $decoded_args ) ) {
-            foreach ( [ 'relation_id', 'parent_rel', 'child_rel' ] as $key ) {
-                if ( isset( $decoded_args[ $key ] ) && is_numeric( $decoded_args[ $key ] ) ) {
-                    $relation_id = (int) $decoded_args[ $key ];
-                    break;
-                }
-            }
+        if ( is_string( $value ) ) {
+            return trim( $value );
         }
 
         if ( $relation_id <= 0 ) {
