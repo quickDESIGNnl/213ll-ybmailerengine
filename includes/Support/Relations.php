@@ -9,7 +9,7 @@ final class Relations {
      * Retrieve a JetEngine relation table for the provided relation ID.
      */
     public static function table( int $relation_id ): ?string {
-        if ( ! $relation_id ) {
+        if ( $relation_id <= 0 ) {
             return null;
         }
 
@@ -23,7 +23,7 @@ final class Relations {
         $like_table = method_exists( $wpdb, 'esc_like' ) ? $wpdb->esc_like( $table ) : $table;
         $exists     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $like_table ) );
 
-        return $exists ? $table : null;
+        return self::table_exists( $wpdb, $table ) ? $table : null;
     }
 
     /**
@@ -37,14 +37,21 @@ final class Relations {
             return [];
         }
 
-        global $wpdb;
+        $wpdb = self::db();
+        if ( ! $wpdb ) {
+            return [];
+        }
 
-        $ids = $wpdb->get_col(
-            $wpdb->prepare(
-                "SELECT child_object_id FROM {$table} WHERE parent_object_id = %d",
-                $parent_id
-            )
+        $sql = $wpdb->prepare(
+            "SELECT child_object_id FROM {$table} WHERE parent_object_id = %d",
+            $parent_id
         );
+
+        if ( ! $sql ) {
+            return [];
+        }
+
+        $ids = $wpdb->get_col( $sql );
 
         return array_map( 'intval', $ids );
     }
@@ -60,14 +67,21 @@ final class Relations {
             return [];
         }
 
-        global $wpdb;
+        $wpdb = self::db();
+        if ( ! $wpdb ) {
+            return [];
+        }
 
-        $ids = $wpdb->get_col(
-            $wpdb->prepare(
-                "SELECT parent_object_id FROM {$table} WHERE child_object_id = %d",
-                $child_id
-            )
+        $sql = $wpdb->prepare(
+            "SELECT parent_object_id FROM {$table} WHERE child_object_id = %d",
+            $child_id
         );
+
+        if ( ! $sql ) {
+            return [];
+        }
+
+        $ids = $wpdb->get_col( $sql );
 
         return array_map( 'intval', $ids );
     }
@@ -125,8 +139,76 @@ final class Relations {
             $choices[ (int) $relation['id'] ] = sprintf( '%s (#%d)', $relation['label'], (int) $relation['id'] );
         }
 
-        if ( ! $choices ) {
-            global $wpdb;
+        if ( ! $relation_id ) {
+            $relation_id = (int) $relation->id;
+        }
+
+        if ( $relation_id <= 0 ) {
+            return null;
+        }
+
+        $label = '';
+
+        if ( isset( $relation->name ) && is_string( $relation->name ) ) {
+            $label = $relation->name;
+        }
+
+        if ( '' === $label && isset( $relation->slug ) ) {
+            $label = (string) $relation->slug;
+        }
+
+        if ( '' === $label && isset( $relation->labels ) ) {
+            $labels = self::maybe_decode( $relation->labels );
+            if ( is_array( $labels ) && isset( $labels['name'] ) ) {
+                $label = (string) $labels['name'];
+            }
+        }
+
+        if ( '' === $label && is_array( $args ) && isset( $args['name'] ) ) {
+            $label = (string) $args['name'];
+        }
+
+        $label = trim( $label );
+
+        if ( '' === $label ) {
+            return null;
+        }
+
+        return [
+            'id'    => $relation_id,
+            'label' => $label,
+        ];
+    }
+
+    /**
+     * Determine whether the provided table exists in the database.
+     */
+    private static function table_exists( wpdb $wpdb, string $table ): bool {
+        if ( '' === $table ) {
+            return false;
+        }
+
+        $pattern = method_exists( $wpdb, 'esc_like' ) ? $wpdb->esc_like( $table ) : $table;
+        $query   = $wpdb->prepare( 'SHOW TABLES LIKE %s', $pattern );
+
+        if ( ! $query ) {
+            return false;
+        }
+
+        return (bool) $wpdb->get_var( $query );
+    }
+
+    /**
+     * Decode JetEngine payloads stored as serialized PHP or JSON.
+     *
+     * @param mixed $value
+     *
+     * @return mixed
+     */
+    private static function maybe_decode( $value ) {
+        if ( is_array( $value ) ) {
+            return $value;
+        }
 
             $table  = $wpdb->prefix . 'jet_post_types';
             $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
@@ -178,14 +260,35 @@ final class Relations {
                         $choices[ $relation_id ] = sprintf( '%s (#%d)', $label, $relation_id );
                     }
                 }
+
+                return $unserialized;
             }
         }
 
-        ksort( $choices );
+        $decoded = json_decode( $value, true );
+        if ( JSON_ERROR_NONE === json_last_error() ) {
+            return $decoded;
+        }
 
-        $cache = $choices;
+        return $value;
+    }
 
-        return $choices;
+    /**
+     * Format a select option label.
+     */
+    private static function format_choice( string $label, int $id ): string {
+        return sprintf( '%s (#%d)', $label, $id );
+    }
+
+    /**
+     * Retrieve the global wpdb instance when available.
+     */
+    private static function db(): ?wpdb {
+        if ( isset( $GLOBALS['wpdb'] ) && $GLOBALS['wpdb'] instanceof wpdb ) {
+            return $GLOBALS['wpdb'];
+        }
+
+        return null;
     }
 
     /**
