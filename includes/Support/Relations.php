@@ -1,5 +1,3 @@
-<?php
-namespace GemMailer\Support;
 
 use wpdb;
 
