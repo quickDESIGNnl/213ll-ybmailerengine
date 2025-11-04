@@ -36,7 +36,7 @@ class ReactionMailer {
 
         $relation_topic_reaction = (int) Settings::get( Settings::OPT_TOPIC_REACTION_REL, 0 );
         $relation_topic_user     = (int) Settings::get( Settings::OPT_TOPIC_USER_RELATION, 0 );
-        $template                = (string) Settings::get( Settings::OPT_TOPIC_EMAIL_TEMPLATE, '' );
+        $template                = (string) Settings::get( Settings::OPT_TOPIC_EMAIL_TEMPLATE );
 
         if ( ! $relation_topic_reaction || ! $relation_topic_user || ! $template ) {
             return;
@@ -83,7 +83,7 @@ class ReactionMailer {
 
         $relation_reaction_reply = (int) Settings::get( Settings::OPT_REACTION_REPLY_REL, 0 );
         $relation_reaction_user  = (int) Settings::get( Settings::OPT_REACTION_USER_REL, 0 );
-        $template                = (string) Settings::get( Settings::OPT_REACTION_EMAIL_TPL, '' );
+        $template                = (string) Settings::get( Settings::OPT_REACTION_EMAIL_TPL );
 
         if ( ! $relation_reaction_reply || ! $relation_reaction_user || ! $template ) {
             return;

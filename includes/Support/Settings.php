@@ -1,6 +1,8 @@
 <?php
 namespace GemMailer\Support;
 
+use function __;
+
 /**
  * Collection of option keys and helper utilities for retrieving settings.
  */
@@ -28,6 +30,22 @@ final class Settings {
     private function __construct() {}
 
     /**
+     * Retrieve a default value for an option key.
+     */
+    public static function default( string $key ): string {
+        switch ( $key ) {
+            case self::OPT_THEMA_EMAIL_TEMPLATE:
+                return self::default_new_topic_template();
+            case self::OPT_TOPIC_EMAIL_TEMPLATE:
+                return self::default_topic_reaction_template();
+            case self::OPT_REACTION_EMAIL_TPL:
+                return self::default_reply_template();
+            default:
+                return '';
+        }
+    }
+
+    /**
      * Retrieve an option value with JetEngine specific normalisation.
      *
      * @param string $key
@@ -35,7 +53,11 @@ final class Settings {
      *
      * @return mixed
      */
-    public static function get( string $key, $default = '' ) {
+    public static function get( string $key, $default = null ) {
+        if ( null === $default ) {
+            $default = self::default( $key );
+        }
+
         $value = get_option( $key, $default );
 
         if ( is_array( $value ) && array_key_exists( 0, $value ) ) {
@@ -43,5 +65,46 @@ final class Settings {
         }
 
         return $value;
+    }
+
+    private static function default_new_topic_template(): string {
+        return implode(
+            "\n\n",
+            [
+                '<p>' . __( 'Hoi {{recipient_name}},', 'gem-mailer' ) . '</p>',
+                '<p>' . __( 'Er is een nieuw onderwerp geplaatst in het forumthema {{thema_title}}.', 'gem-mailer' ) . '</p>',
+                '<p><strong>{{topic_title}}</strong></p>',
+                '<p>{{topic_excerpt}}</p>',
+                '<p><a href="{{topic_link}}">' . __( 'Bekijk het onderwerp', 'gem-mailer' ) . '</a></p>',
+                '<p>' . __( 'Met vriendelijke groet,', 'gem-mailer' ) . '<br>{{site_name}}</p>',
+            ]
+        );
+    }
+
+    private static function default_topic_reaction_template(): string {
+        return implode(
+            "\n\n",
+            [
+                '<p>' . __( 'Hoi {{recipient_name}},', 'gem-mailer' ) . '</p>',
+                '<p>' . __( 'Er is een nieuwe reactie geplaatst op het onderwerp {{topic_title}}.', 'gem-mailer' ) . '</p>',
+                '<p>{{reaction_excerpt}}</p>',
+                '<p><a href="{{reaction_link}}">' . __( 'Bekijk de reactie', 'gem-mailer' ) . '</a></p>',
+                '<p>' . __( 'Tot snel op', 'gem-mailer' ) . ' {{site_name}}</p>',
+            ]
+        );
+    }
+
+    private static function default_reply_template(): string {
+        return implode(
+            "\n\n",
+            [
+                '<p>' . __( 'Hoi {{recipient_name}},', 'gem-mailer' ) . '</p>',
+                '<p>' . __( 'Er is een nieuw antwoord geplaatst op jouw reactie.', 'gem-mailer' ) . '</p>',
+                '<p><strong>' . __( 'Reactie van', 'gem-mailer' ) . ' {{reply_author}}</strong></p>',
+                '<p>{{reply_excerpt}}</p>',
+                '<p><a href="{{reply_link}}">' . __( 'Lees het volledige antwoord', 'gem-mailer' ) . '</a></p>',
+                '<p>' . __( 'Groeten van', 'gem-mailer' ) . ' {{site_name}}</p>',
+            ]
+        );
     }
 }

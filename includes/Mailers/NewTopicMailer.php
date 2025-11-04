@@ -33,7 +33,7 @@ class NewTopicMailer {
         $rel_term_object = (int) Settings::get( Settings::OPT_THEMA_RELATION, 0 );
         $rel_topic_thema = (int) Settings::get( Settings::OPT_THEMA_TOPIC_RELATION, 0 );
         $rel_thema_users = (int) Settings::get( Settings::OPT_THEMA_USER_RELATION, 0 );
-        $template        = (string) Settings::get( Settings::OPT_THEMA_EMAIL_TEMPLATE, '' );
+        $template        = (string) Settings::get( Settings::OPT_THEMA_EMAIL_TEMPLATE );
 
         if ( ! $rel_thema_users || ! $template ) {
             return;
