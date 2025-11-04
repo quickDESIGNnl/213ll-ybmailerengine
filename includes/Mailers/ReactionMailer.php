@@ -11,8 +11,16 @@ use WP_Post;
  * Verstuurt meldingen voor nieuwe reacties en replies binnen JetEngine forums.
  */
 class ReactionMailer {
+    /**
+     * Queue of reaction IDs pending notification dispatch.
+     *
+     * @var array<int,int>
+     */
+    private array $queue = [];
+
     public function register(): void {
         add_action( 'transition_post_status', [ $this, 'maybe_notify' ], 10, 3 );
+        add_action( 'shutdown', [ $this, 'process_queue' ] );
     }
 
     public function maybe_notify( string $new_status, string $old_status, WP_Post $post ): void {
@@ -25,8 +33,25 @@ class ReactionMailer {
             return;
         }
 
-        $this->notify_topic_followers( $post );
-        $this->notify_reply_followers( $post );
+        $this->queue[ $post->ID ] = $post->ID;
+    }
+
+    public function process_queue(): void {
+        if ( ! $this->queue ) {
+            return;
+        }
+
+        foreach ( $this->queue as $post_id ) {
+            $post = get_post( $post_id );
+            if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
+                continue;
+            }
+
+            $this->notify_topic_followers( $post );
+            $this->notify_reply_followers( $post );
+        }
+
+        $this->queue = [];
     }
 
     private function notify_topic_followers( WP_Post $reaction ): void {
@@ -36,7 +61,7 @@ class ReactionMailer {
 
         $relation_topic_reaction = (int) Settings::get( Settings::OPT_TOPIC_REACTION_REL, 0 );
         $relation_topic_user     = (int) Settings::get( Settings::OPT_TOPIC_USER_RELATION, 0 );
-        $template                = (string) Settings::get( Settings::OPT_TOPIC_EMAIL_TEMPLATE, '' );
+        $template                = (string) Settings::get( Settings::OPT_TOPIC_EMAIL_TEMPLATE );
 
         if ( ! $relation_topic_reaction || ! $relation_topic_user || ! $template ) {
             return;
@@ -83,7 +108,7 @@ class ReactionMailer {
 
         $relation_reaction_reply = (int) Settings::get( Settings::OPT_REACTION_REPLY_REL, 0 );
         $relation_reaction_user  = (int) Settings::get( Settings::OPT_REACTION_USER_REL, 0 );
-        $template                = (string) Settings::get( Settings::OPT_REACTION_EMAIL_TPL, '' );
+        $template                = (string) Settings::get( Settings::OPT_REACTION_EMAIL_TPL );
 
         if ( ! $relation_reaction_reply || ! $relation_reaction_user || ! $template ) {
             return;
