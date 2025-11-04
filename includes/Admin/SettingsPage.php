@@ -28,13 +28,14 @@ class SettingsPage {
     public function register_settings(): void {
         foreach ( $this->blueprint() as $tab ) {
             foreach ( $tab['fields'] as $field ) {
+                $default = $field['default'] ?? '';
                 register_setting(
                     'gem_mailer',
                     $field['option'],
                     [
                         'type'              => 'string',
                         'sanitize_callback' => $field['sanitize'] ?? null,
-                        'default'           => '',
+                        'default'           => $default,
                     ]
                 );
             }
@@ -78,7 +79,7 @@ class SettingsPage {
                             </label>
                             <p class="description"><?php echo esc_html( $field['description'] ); ?></p>
                             <?php
-                            $value = Settings::get( $field['option'], '' );
+                            $value = Settings::get( $field['option'], $field['default'] ?? '' );
                             switch ( $field['type'] ) {
                                 case 'select':
                                     ?>
@@ -197,6 +198,7 @@ class SettingsPage {
                         'option'      => Settings::OPT_THEMA_EMAIL_TEMPLATE,
                         'label'       => __( 'E-mailtemplate: nieuw onderwerp', 'gem-mailer' ),
                         'description' => __( 'HTML-template voor meldingen wanneer een nieuw onderwerp wordt geplaatst.', 'gem-mailer' ),
+                        'default'     => Settings::default( Settings::OPT_THEMA_EMAIL_TEMPLATE ),
                         'tags'        => [
                             '{{recipient_name}}' => __( 'Naam van de ontvanger.', 'gem-mailer' ),
                             '{{thema_title}}'    => __( 'Titel van het thema.', 'gem-mailer' ),
@@ -253,6 +255,7 @@ class SettingsPage {
                         'option'      => Settings::OPT_TOPIC_EMAIL_TEMPLATE,
                         'label'       => __( 'E-mailtemplate: reactie op onderwerp', 'gem-mailer' ),
                         'description' => __( 'HTML-template voor meldingen bij een nieuwe reactie in een onderwerp.', 'gem-mailer' ),
+                        'default'     => Settings::default( Settings::OPT_TOPIC_EMAIL_TEMPLATE ),
                         'tags'        => [
                             '{{recipient_name}}'   => __( 'Naam van de ontvanger.', 'gem-mailer' ),
                             '{{topic_title}}'      => __( 'Titel van het onderwerp.', 'gem-mailer' ),
@@ -292,6 +295,7 @@ class SettingsPage {
                         'option'      => Settings::OPT_REACTION_EMAIL_TPL,
                         'label'       => __( 'E-mailtemplate: reactie op reactie', 'gem-mailer' ),
                         'description' => __( 'HTML-template voor meldingen wanneer iemand reageert op een bestaande reactie.', 'gem-mailer' ),
+                        'default'     => Settings::default( Settings::OPT_REACTION_EMAIL_TPL ),
                         'tags'        => [
                             '{{recipient_name}}'  => __( 'Naam van de ontvanger.', 'gem-mailer' ),
                             '{{topic_title}}'     => __( 'Titel van het onderwerp.', 'gem-mailer' ),
