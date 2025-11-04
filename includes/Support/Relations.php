@@ -15,7 +15,7 @@ final class Relations {
     private function __construct() {}
 
     /**
-     * Retrieve a JetEngine relation table for the provided relation ID.
+     * Retrieve the JetEngine relation table name for a relation ID.
      */
     public static function table( int $relation_id ): ?string {
         if ( $relation_id <= 0 ) {
@@ -62,11 +62,15 @@ final class Relations {
             return [];
         }
 
+        if ( ! is_array( $ids ) ) {
+            return [];
+        }
+
         return array_map( 'intval', $ids );
     }
 
     /**
-     * Fetch parent object IDs for a child object.
+     * Fetch parent object IDs for a given child object.
      *
      * @return int[]
      */
@@ -91,6 +95,10 @@ final class Relations {
         }
 
         $ids = $wpdb->get_col( $query );
+        if ( ! is_array( $ids ) ) {
+            return [];
+        }
+
         if ( ! is_array( $ids ) ) {
             return [];
         }
@@ -391,6 +399,8 @@ final class Relations {
             if ( $parsed ) {
                 $relations[ $parsed['id'] ] = $parsed;
             }
+
+            return '';
         }
 
         return array_values( $relations );
