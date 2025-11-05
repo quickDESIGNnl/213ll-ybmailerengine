@@ -8,6 +8,7 @@ use GemMailer\Support\Utils;
 use WP_Post;
 use function __;
 use function add_action;
+use function error_log;
 use function get_bloginfo;
 use function get_post;
 use function get_post_meta;
@@ -20,6 +21,7 @@ use function time;
 use function update_post_meta;
 use function wp_clear_scheduled_hook;
 use function wp_get_object_terms;
+use function wp_json_encode;
 use function wp_schedule_single_event;
 
 /**
@@ -35,11 +37,28 @@ class NewTopicMailer {
 
     public function maybe_notify( string $new_status, string $old_status, WP_Post $post ): void {
         if ( 'publish' !== $new_status || 'publish' === $old_status ) {
+            $this->log(
+                'Skipping topic transition: invalid status change',
+                [
+                    'post_id'    => $post->ID,
+                    'post_type'  => $post->post_type,
+                    'old_status' => $old_status,
+                    'new_status' => $new_status,
+                ]
+            );
             return;
         }
 
-        $topic_cpt = (string) Settings::get( Settings::OPT_TOPIC_CPT, '' );
+        $topic_cpt    = (string) Settings::get( Settings::OPT_TOPIC_CPT, '' );
         if ( ! $topic_cpt || $post->post_type !== $topic_cpt ) {
+            $this->log(
+                'Skipping topic transition: post type does not match configured CPT',
+                [
+                    'post_id'   => $post->ID,
+                    'post_type' => $post->post_type,
+                    'expected'  => $topic_cpt,
+                ]
+            );
             return;
         }
 
@@ -47,19 +66,45 @@ class NewTopicMailer {
 
         wp_clear_scheduled_hook( self::EVENT_HOOK, [ $post->ID ] );
         wp_schedule_single_event( time() + $delay, self::EVENT_HOOK, [ $post->ID ] );
+        $this->log(
+            'Scheduled new topic processing',
+            [
+                'post_id' => $post->ID,
+                'delay'   => $delay,
+            ]
+        );
     }
 
     public function process_single( int $post_id ): void {
         $post = get_post( $post_id );
         if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
+            $this->log(
+                'Aborting topic processing: post not found or not published',
+                [
+                    'post_id' => $post_id,
+                ]
+            );
             return;
         }
 
+        $this->log(
+            'Processing published topic',
+            [
+                'post_id'   => $post->ID,
+                'post_type' => $post->post_type,
+            ]
+        );
         $this->notify_post( $post );
     }
 
     private function notify_post( WP_Post $post ): void {
         if ( get_post_meta( $post->ID, Settings::META_TOPIC_SENT, true ) ) {
+            $this->log(
+                'Skipping topic notification: already sent',
+                [
+                    'post_id' => $post->ID,
+                ]
+            );
             return;
         }
 
@@ -71,6 +116,14 @@ class NewTopicMailer {
         $subject_tpl     = (string) Settings::get( Settings::OPT_THEMA_EMAIL_SUBJECT );
 
         if ( ! $rel_thema_users || ! $template || ! $subject_tpl ) {
+            $this->log(
+                'Missing configuration for topic notification',
+                [
+                    'rel_thema_users' => $rel_thema_users,
+                    'template'        => (bool) $template,
+                    'subject_tpl'     => (bool) $subject_tpl,
+                ]
+            );
             return;
         }
 
@@ -89,6 +142,13 @@ class NewTopicMailer {
         }
 
         if ( ! $thema_ids && ! $term_ids ) {
+            $this->log(
+                'No related thema or terms found for topic',
+                [
+                    'post_id'  => $post->ID,
+                    'taxonomy' => $taxonomy,
+                ]
+            );
             return;
         }
 
@@ -137,6 +197,14 @@ class NewTopicMailer {
             $user_ids = Utils::filter_user_ids( $user_ids, (int) $post->post_author );
 
             if ( ! $user_ids ) {
+                $this->log(
+                    'No recipients found for thema',
+                    [
+                        'post_id'   => $post->ID,
+                        'thema_id'  => $target['lookup_id'],
+                        'taxonomy'  => $target['context_taxonomy'],
+                    ]
+                );
                 continue;
             }
 
@@ -159,9 +227,33 @@ class NewTopicMailer {
                 'reply_permalink' => '',
             ];
 
+            $this->log(
+                'Sending topic notification',
+                [
+                    'post_id'      => $post->ID,
+                    'recipient_count' => count( $user_ids ),
+                    'thema_id'     => $target['lookup_id'],
+                    'taxonomy'     => $target['context_taxonomy'],
+                ]
+            );
             Email::send_to_users( $user_ids, $subject_tpl, $template, $context );
         }
 
         update_post_meta( $post->ID, Settings::META_TOPIC_SENT, time() );
+        $this->log(
+            'Marked topic notification as sent',
+            [
+                'post_id' => $post->ID,
+            ]
+        );
+    }
+
+    private function log( string $message, array $context = [] ): void {
+        if ( $context ) {
+            $message .= ' ' . wp_json_encode( $context );
+        }
+
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+        error_log( '[GemMailer][NewTopic] ' . $message );
     }
 }
