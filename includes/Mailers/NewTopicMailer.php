@@ -49,17 +49,17 @@ class NewTopicMailer {
             return;
         }
 
-        $topic_cpt    = (string) Settings::get( Settings::OPT_TOPIC_CPT, '' );
-        $allowed_cpts = array_filter(
-            array_unique(
-                array_merge(
-                    $topic_cpt ? [ $topic_cpt ] : [],
-                    [ 'onderwerpen' ]
-                )
-            )
-        );
+        $allowed_cpts = $this->allowed_topic_post_types();
 
         if ( ! in_array( $post->post_type, $allowed_cpts, true ) ) {
+            $this->log(
+                'Skipping topic transition: post type not allowed',
+                [
+                    'post_id'   => $post->ID,
+                    'post_type' => $post->post_type,
+                    'allowed'   => $allowed_cpts,
+                ]
+            );
             return;
         }
 
@@ -83,6 +83,19 @@ class NewTopicMailer {
                 'Aborting topic processing: post not found or not published',
                 [
                     'post_id' => $post_id,
+                ]
+            );
+            return;
+        }
+
+        $allowed_cpts = $this->allowed_topic_post_types();
+        if ( ! in_array( $post->post_type, $allowed_cpts, true ) ) {
+            $this->log(
+                'Aborting topic processing: post type not allowed',
+                [
+                    'post_id'   => $post->ID,
+                    'post_type' => $post->post_type,
+                    'allowed'   => $allowed_cpts,
                 ]
             );
             return;
@@ -220,7 +233,7 @@ class NewTopicMailer {
                 'topic_excerpt' => Utils::excerpt( $post->ID ),
                 'topic_author'  => get_the_author_meta( 'display_name', $post->post_author ),
                 'post_title'    => get_the_title( $post ),
-                'post_permalink'=> get_permalink( $post ),
+                'post_permalink' => get_permalink( $post ),
                 'site_name'     => get_bloginfo( 'name' ),
                 'site_url'      => home_url(),
                 'reply_author'  => '',
@@ -247,6 +260,24 @@ class NewTopicMailer {
                 'post_id' => $post->ID,
             ]
         );
+    }
+
+    /**
+     * Retrieve the list of CPTs that should trigger topic notifications.
+     *
+     * @return string[]
+     */
+    private function allowed_topic_post_types(): array {
+        $topic_cpt = (string) Settings::get( Settings::OPT_TOPIC_CPT, '' );
+
+        $allowed = array_merge(
+            $topic_cpt ? [ $topic_cpt ] : [],
+            [ 'onderwerpen' ]
+        );
+
+        $allowed = array_filter( array_unique( $allowed ) );
+
+        return array_values( $allowed );
     }
 
     private function log( string $message, array $context = [] ): void {

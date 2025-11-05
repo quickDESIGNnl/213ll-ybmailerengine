@@ -102,7 +102,7 @@ class TestMailer {
                     'topic_excerpt' => __( 'Dit is een voorbeeldtekst voor een nieuw forumonderwerp.', 'gem-mailer' ),
                     'topic_author'  => __( 'Forumtester', 'gem-mailer' ),
                     'post_title'    => __( 'Voorbeeld onderwerp', 'gem-mailer' ),
-                    'post_permalink'=> home_url( '/forum/onderwerpen/voorbeeld' ),
+                    'post_permalink' => home_url( '/forum/onderwerpen/voorbeeld' ),
                     'site_name'     => get_bloginfo( 'name' ),
                     'site_url'      => home_url(),
                     'reply_author'  => '',
