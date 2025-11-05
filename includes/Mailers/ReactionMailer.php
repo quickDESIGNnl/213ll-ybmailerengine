@@ -81,12 +81,23 @@ class ReactionMailer {
                 continue;
             }
 
+            $topic_title   = get_the_title( $topic_id );
+            $topic_link    = get_permalink( $topic_id );
+            $reply_author  = get_the_author_meta( 'display_name', $reaction->post_author );
+            $reply_link    = get_permalink( $reaction );
+            $reply_excerpt = Utils::excerpt( $reaction->ID );
+
             $context = [
-                'topic_title'      => get_the_title( $topic_id ),
-                'topic_link'       => get_permalink( $topic_id ),
-                'reaction_author'  => get_the_author_meta( 'display_name', $reaction->post_author ),
-                'reaction_link'    => get_permalink( $reaction ),
-                'reaction_excerpt' => Utils::excerpt( $reaction->ID ),
+                'topic_title'      => $topic_title,
+                'topic_link'       => $topic_link,
+                'reaction_author'  => $reply_author,
+                'reaction_link'    => $reply_link,
+                'reaction_excerpt' => $reply_excerpt,
+                'post_title'       => $topic_title,
+                'post_permalink'   => $topic_link,
+                'reply_author'     => $reply_author,
+                'reply_excerpt'    => $reply_excerpt,
+                'reply_permalink'  => $reply_link,
                 'site_name'        => get_bloginfo( 'name' ),
                 'site_url'         => home_url(),
             ];
@@ -132,14 +143,25 @@ class ReactionMailer {
             $topic_ids = $topic_rel ? Relations::parents( $topic_rel, $parent_id ) : [];
             $topic_id  = $topic_ids ? (int) $topic_ids[0] : 0;
 
+            $topic_title = $topic_id ? get_the_title( $topic_id ) : '';
+            $topic_link  = $topic_id ? get_permalink( $topic_id ) : '';
+            $parent_author = get_the_author_meta( 'display_name', (int) get_post_field( 'post_author', $parent_id ) );
+            $parent_excerpt = Utils::excerpt( $parent_id );
+            $reply_author   = get_the_author_meta( 'display_name', $reaction->post_author );
+            $reply_excerpt  = Utils::excerpt( $reaction->ID );
+            $reply_link     = get_permalink( $reaction );
+
             $context = [
-                'topic_title'      => $topic_id ? get_the_title( $topic_id ) : '',
-                'topic_link'       => $topic_id ? get_permalink( $topic_id ) : '',
-                'reaction_author'  => get_the_author_meta( 'display_name', (int) get_post_field( 'post_author', $parent_id ) ),
-                'reaction_excerpt' => Utils::excerpt( $parent_id ),
-                'reply_author'     => get_the_author_meta( 'display_name', $reaction->post_author ),
-                'reply_excerpt'    => Utils::excerpt( $reaction->ID ),
-                'reply_link'       => get_permalink( $reaction ),
+                'topic_title'      => $topic_title,
+                'topic_link'       => $topic_link,
+                'reaction_author'  => $parent_author,
+                'reaction_excerpt' => $parent_excerpt,
+                'reply_author'     => $reply_author,
+                'reply_excerpt'    => $reply_excerpt,
+                'reply_link'       => $reply_link,
+                'post_title'       => $topic_title,
+                'post_permalink'   => $topic_link,
+                'reply_permalink'  => $reply_link,
                 'site_name'        => get_bloginfo( 'name' ),
                 'site_url'         => home_url(),
             ];
