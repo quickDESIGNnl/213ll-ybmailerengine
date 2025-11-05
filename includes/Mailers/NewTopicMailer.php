@@ -38,8 +38,17 @@ class NewTopicMailer {
             return;
         }
 
-        $topic_cpt = (string) Settings::get( Settings::OPT_TOPIC_CPT, '' );
-        if ( ! $topic_cpt || $post->post_type !== $topic_cpt ) {
+        $topic_cpt    = (string) Settings::get( Settings::OPT_TOPIC_CPT, '' );
+        $allowed_cpts = array_filter(
+            array_unique(
+                array_merge(
+                    $topic_cpt ? [ $topic_cpt ] : [],
+                    [ 'onderwerpen' ]
+                )
+            )
+        );
+
+        if ( ! in_array( $post->post_type, $allowed_cpts, true ) ) {
             return;
         }
 
