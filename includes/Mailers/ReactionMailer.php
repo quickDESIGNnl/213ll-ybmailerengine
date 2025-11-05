@@ -16,32 +16,23 @@ use function get_post_meta;
 use function get_the_author_meta;
 use function get_the_title;
 use function home_url;
-use function is_array;
-use function is_numeric;
-use function is_object;
-use function method_exists;
-use function property_exists;
 use function time;
 use function update_post_meta;
+use function wp_clear_scheduled_hook;
+use function wp_schedule_single_event;
 
 /**
  * Verstuurt meldingen voor nieuwe reacties binnen JetEngine forums.
  */
 class ReactionMailer {
-    /**
-     * Queue of reaction IDs pending notification dispatch.
-     *
-     * @var array<int,int>
-     */
-    private array $queue = [];
+    private const EVENT_HOOK = 'gem_mailer_process_reaction';
 
     public function register(): void {
-        add_action( 'transition_post_status', [ $this, 'maybe_notify' ], 10, 3 );
-        add_action( 'gem_jfb_notify_parent_author', [ $this, 'maybe_enqueue_from_form' ], 10, 10 );
-        add_action( 'shutdown', [ $this, 'process_queue' ] );
+        add_action( 'transition_post_status', [ $this, 'maybe_schedule' ], 10, 3 );
+        add_action( self::EVENT_HOOK, [ $this, 'process_single' ] );
     }
 
-    public function maybe_notify( string $new_status, string $old_status, WP_Post $post ): void {
+    public function maybe_schedule( string $new_status, string $old_status, WP_Post $post ): void {
         if ( 'publish' !== $new_status || 'publish' === $old_status ) {
             return;
         }
@@ -51,39 +42,24 @@ class ReactionMailer {
             return;
         }
 
-        $this->queue[ $post->ID ] = $post->ID;
+        $delay = max( 0, (int) Settings::get( Settings::OPT_THEMA_EMAIL_DELAY, 0 ) );
+
+        wp_clear_scheduled_hook( self::EVENT_HOOK, [ $post->ID ] );
+        wp_schedule_single_event( time() + $delay, self::EVENT_HOOK, [ $post->ID ] );
     }
 
-    public function maybe_enqueue_from_form( ...$args ): void {
-        $post_id = $this->resolve_post_id_from_args( $args );
-        if ( ! $post_id ) {
-            return;
-        }
-
-        $this->queue[ $post_id ] = $post_id;
-    }
-
-    public function process_queue(): void {
-        if ( ! $this->queue ) {
+    public function process_single( int $post_id ): void {
+        $post = get_post( $post_id );
+        if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
             return;
         }
 
         $reaction_cpt = (string) Settings::get( Settings::OPT_REACTION_CPT, '' );
-
-        foreach ( $this->queue as $post_id ) {
-            $post = get_post( $post_id );
-            if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
-                continue;
-            }
-
-            if ( $reaction_cpt && $post->post_type !== $reaction_cpt ) {
-                continue;
-            }
-
-            $this->notify_participants( $post );
+        if ( $reaction_cpt && $post->post_type !== $reaction_cpt ) {
+            return;
         }
 
-        $this->queue = [];
+        $this->notify_participants( $post );
     }
 
     private function notify_participants( WP_Post $reaction ): void {
@@ -167,71 +143,4 @@ class ReactionMailer {
         ];
     }
 
-    /**
-     * @param array<int,mixed> $args
-     */
-    private function resolve_post_id_from_args( array $args ): int {
-        foreach ( $args as $arg ) {
-            if ( is_numeric( $arg ) ) {
-                return (int) $arg;
-            }
-
-            if ( is_array( $arg ) ) {
-                $id = $this->post_id_from_array( $arg );
-                if ( $id ) {
-                    return $id;
-                }
-            }
-
-            if ( is_object( $arg ) ) {
-                $id = $this->post_id_from_object( $arg );
-                if ( $id ) {
-                    return $id;
-                }
-            }
-        }
-
-        return 0;
-    }
-
-    /**
-     * @param array<string,mixed> $data
-     */
-    private function post_id_from_array( array $data ): int {
-        $keys = [ 'inserted_post_id', 'post_id', 'id', 'reaction_id' ];
-
-        foreach ( $keys as $key ) {
-            if ( isset( $data[ $key ] ) && is_numeric( $data[ $key ] ) ) {
-                return (int) $data[ $key ];
-            }
-        }
-
-        return 0;
-    }
-
-    private function post_id_from_object( object $data ): int {
-        $keys = [ 'inserted_post_id', 'post_id', 'id', 'reaction_id' ];
-
-        foreach ( $keys as $key ) {
-            if ( property_exists( $data, $key ) && is_numeric( $data->{$key} ) ) {
-                return (int) $data->{$key};
-            }
-        }
-
-        if ( method_exists( $data, 'get_inserted_post_id' ) ) {
-            $value = $data->get_inserted_post_id();
-            if ( is_numeric( $value ) ) {
-                return (int) $value;
-            }
-        }
-
-        if ( method_exists( $data, 'get' ) ) {
-            $value = $data->get( 'inserted_post_id' );
-            if ( is_numeric( $value ) ) {
-                return (int) $value;
-            }
-        }
-
-        return 0;
-    }
 }
