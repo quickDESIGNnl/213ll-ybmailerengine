@@ -7,9 +7,25 @@ use GemMailer\Support\Settings;
 use GemMailer\Support\Utils;
 use WP_Post;
 use function __;
+use function add_action;
+use function get_bloginfo;
+use function get_permalink;
+use function get_post;
+use function get_post_field;
+use function get_post_meta;
+use function get_the_author_meta;
+use function get_the_title;
+use function home_url;
+use function is_array;
+use function is_numeric;
+use function is_object;
+use function method_exists;
+use function property_exists;
+use function time;
+use function update_post_meta;
 
 /**
- * Verstuurt meldingen voor nieuwe reacties en replies binnen JetEngine forums.
+ * Verstuurt meldingen voor nieuwe reacties binnen JetEngine forums.
  */
 class ReactionMailer {
     /**
@@ -21,6 +37,7 @@ class ReactionMailer {
 
     public function register(): void {
         add_action( 'transition_post_status', [ $this, 'maybe_notify' ], 10, 3 );
+        add_action( 'gem_jfb_notify_parent_author', [ $this, 'maybe_enqueue_from_form' ], 10, 10 );
         add_action( 'shutdown', [ $this, 'process_queue' ] );
     }
 
@@ -37,10 +54,21 @@ class ReactionMailer {
         $this->queue[ $post->ID ] = $post->ID;
     }
 
+    public function maybe_enqueue_from_form( ...$args ): void {
+        $post_id = $this->resolve_post_id_from_args( $args );
+        if ( ! $post_id ) {
+            return;
+        }
+
+        $this->queue[ $post_id ] = $post_id;
+    }
+
     public function process_queue(): void {
         if ( ! $this->queue ) {
             return;
         }
+
+        $reaction_cpt = (string) Settings::get( Settings::OPT_REACTION_CPT, '' );
 
         foreach ( $this->queue as $post_id ) {
             $post = get_post( $post_id );
@@ -48,23 +76,25 @@ class ReactionMailer {
                 continue;
             }
 
-            $this->notify_topic_followers( $post );
-            $this->notify_reply_followers( $post );
+            if ( $reaction_cpt && $post->post_type !== $reaction_cpt ) {
+                continue;
+            }
+
+            $this->notify_participants( $post );
         }
 
         $this->queue = [];
     }
 
-    private function notify_topic_followers( WP_Post $reaction ): void {
+    private function notify_participants( WP_Post $reaction ): void {
         if ( get_post_meta( $reaction->ID, Settings::META_REACTION_SENT, true ) ) {
             return;
         }
 
         $relation_topic_reaction = (int) Settings::get( Settings::OPT_TOPIC_REACTION_REL, 0 );
-        $relation_topic_user     = (int) Settings::get( Settings::OPT_TOPIC_USER_RELATION, 0 );
         $template                = (string) Settings::get( Settings::OPT_TOPIC_EMAIL_TEMPLATE );
 
-        if ( ! $relation_topic_reaction || ! $relation_topic_user || ! $template ) {
+        if ( ! $relation_topic_reaction || ! $template ) {
             return;
         }
 
@@ -74,33 +104,12 @@ class ReactionMailer {
         }
 
         foreach ( $topic_ids as $topic_id ) {
-            $user_ids = Relations::children( $relation_topic_user, $topic_id );
-            $user_ids = Utils::filter_user_ids( $user_ids, (int) $reaction->post_author );
-
+            $user_ids = $this->collect_participants( (int) $topic_id, $reaction, $relation_topic_reaction );
             if ( ! $user_ids ) {
                 continue;
             }
 
-            $topic_title   = get_the_title( $topic_id );
-            $topic_link    = get_permalink( $topic_id );
-            $reply_author  = get_the_author_meta( 'display_name', $reaction->post_author );
-            $reply_link    = get_permalink( $reaction );
-            $reply_excerpt = Utils::excerpt( $reaction->ID );
-
-            $context = [
-                'topic_title'      => $topic_title,
-                'topic_link'       => $topic_link,
-                'reaction_author'  => $reply_author,
-                'reaction_link'    => $reply_link,
-                'reaction_excerpt' => $reply_excerpt,
-                'post_title'       => $topic_title,
-                'post_permalink'   => $topic_link,
-                'reply_author'     => $reply_author,
-                'reply_excerpt'    => $reply_excerpt,
-                'reply_permalink'  => $reply_link,
-                'site_name'        => get_bloginfo( 'name' ),
-                'site_url'         => home_url(),
-            ];
+            $context = $this->build_context( (int) $topic_id, $reaction );
 
             $subject = sprintf(
                 __( 'Nieuwe reactie op %s', 'gem-mailer' ),
@@ -113,64 +122,116 @@ class ReactionMailer {
         update_post_meta( $reaction->ID, Settings::META_REACTION_SENT, time() );
     }
 
-    private function notify_reply_followers( WP_Post $reaction ): void {
-        if ( get_post_meta( $reaction->ID, Settings::META_REPLY_SENT, true ) ) {
-            return;
+    /**
+     * @return int[]
+     */
+    private function collect_participants( int $topic_id, WP_Post $reaction, int $relation_id ): array {
+        $user_ids = [];
+
+        $topic_author = (int) get_post_field( 'post_author', $topic_id );
+        if ( $topic_author ) {
+            $user_ids[] = $topic_author;
         }
 
-        $relation_reaction_reply = (int) Settings::get( Settings::OPT_REACTION_REPLY_REL, 0 );
-        $relation_reaction_user  = (int) Settings::get( Settings::OPT_REACTION_USER_REL, 0 );
-        $template                = (string) Settings::get( Settings::OPT_REACTION_EMAIL_TPL );
-
-        if ( ! $relation_reaction_reply || ! $relation_reaction_user || ! $template ) {
-            return;
+        $reaction_ids = Relations::children( $relation_id, $topic_id );
+        foreach ( $reaction_ids as $reaction_id ) {
+            $author = (int) get_post_field( 'post_author', $reaction_id );
+            if ( $author ) {
+                $user_ids[] = $author;
+            }
         }
 
-        $parent_ids = Relations::parents( $relation_reaction_reply, $reaction->ID );
-        if ( ! $parent_ids ) {
-            return;
-        }
+        return Utils::filter_user_ids( $user_ids, (int) $reaction->post_author );
+    }
 
-        foreach ( $parent_ids as $parent_id ) {
-            $user_ids = Relations::children( $relation_reaction_user, $parent_id );
-            $user_ids = Utils::filter_user_ids( $user_ids, (int) $reaction->post_author );
+    private function build_context( int $topic_id, WP_Post $reaction ): array {
+        $topic_title  = get_the_title( $topic_id );
+        $topic_link   = get_permalink( $topic_id );
+        $reply_author = get_the_author_meta( 'display_name', (int) $reaction->post_author );
+        $reply_link   = get_permalink( $reaction );
+        $reply_excerpt = Utils::excerpt( $reaction->ID );
 
-            if ( ! $user_ids ) {
-                continue;
+        return [
+            'topic_title'      => $topic_title,
+            'topic_link'       => $topic_link,
+            'reaction_author'  => $reply_author,
+            'reaction_link'    => $reply_link,
+            'reaction_excerpt' => $reply_excerpt,
+            'post_title'       => $topic_title,
+            'post_permalink'   => $topic_link,
+            'reply_author'     => $reply_author,
+            'reply_excerpt'    => $reply_excerpt,
+            'reply_permalink'  => $reply_link,
+            'site_name'        => get_bloginfo( 'name' ),
+            'site_url'         => home_url(),
+        ];
+    }
+
+    /**
+     * @param array<int,mixed> $args
+     */
+    private function resolve_post_id_from_args( array $args ): int {
+        foreach ( $args as $arg ) {
+            if ( is_numeric( $arg ) ) {
+                return (int) $arg;
             }
 
-            $topic_rel = (int) Settings::get( Settings::OPT_TOPIC_REACTION_REL, 0 );
-            $topic_ids = $topic_rel ? Relations::parents( $topic_rel, $parent_id ) : [];
-            $topic_id  = $topic_ids ? (int) $topic_ids[0] : 0;
+            if ( is_array( $arg ) ) {
+                $id = $this->post_id_from_array( $arg );
+                if ( $id ) {
+                    return $id;
+                }
+            }
 
-            $topic_title = $topic_id ? get_the_title( $topic_id ) : '';
-            $topic_link  = $topic_id ? get_permalink( $topic_id ) : '';
-            $parent_author = get_the_author_meta( 'display_name', (int) get_post_field( 'post_author', $parent_id ) );
-            $parent_excerpt = Utils::excerpt( $parent_id );
-            $reply_author   = get_the_author_meta( 'display_name', $reaction->post_author );
-            $reply_excerpt  = Utils::excerpt( $reaction->ID );
-            $reply_link     = get_permalink( $reaction );
-
-            $context = [
-                'topic_title'      => $topic_title,
-                'topic_link'       => $topic_link,
-                'reaction_author'  => $parent_author,
-                'reaction_excerpt' => $parent_excerpt,
-                'reply_author'     => $reply_author,
-                'reply_excerpt'    => $reply_excerpt,
-                'reply_link'       => $reply_link,
-                'post_title'       => $topic_title,
-                'post_permalink'   => $topic_link,
-                'reply_permalink'  => $reply_link,
-                'site_name'        => get_bloginfo( 'name' ),
-                'site_url'         => home_url(),
-            ];
-
-            $subject = __( 'Nieuw antwoord op je reactie', 'gem-mailer' );
-
-            Email::send_to_users( $user_ids, $subject, $template, $context );
+            if ( is_object( $arg ) ) {
+                $id = $this->post_id_from_object( $arg );
+                if ( $id ) {
+                    return $id;
+                }
+            }
         }
 
-        update_post_meta( $reaction->ID, Settings::META_REPLY_SENT, time() );
+        return 0;
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function post_id_from_array( array $data ): int {
+        $keys = [ 'inserted_post_id', 'post_id', 'id', 'reaction_id' ];
+
+        foreach ( $keys as $key ) {
+            if ( isset( $data[ $key ] ) && is_numeric( $data[ $key ] ) ) {
+                return (int) $data[ $key ];
+            }
+        }
+
+        return 0;
+    }
+
+    private function post_id_from_object( object $data ): int {
+        $keys = [ 'inserted_post_id', 'post_id', 'id', 'reaction_id' ];
+
+        foreach ( $keys as $key ) {
+            if ( property_exists( $data, $key ) && is_numeric( $data->{$key} ) ) {
+                return (int) $data->{$key};
+            }
+        }
+
+        if ( method_exists( $data, 'get_inserted_post_id' ) ) {
+            $value = $data->get_inserted_post_id();
+            if ( is_numeric( $value ) ) {
+                return (int) $value;
+            }
+        }
+
+        if ( method_exists( $data, 'get' ) ) {
+            $value = $data->get( 'inserted_post_id' );
+            if ( is_numeric( $value ) ) {
+                return (int) $value;
+            }
+        }
+
+        return 0;
     }
 }
