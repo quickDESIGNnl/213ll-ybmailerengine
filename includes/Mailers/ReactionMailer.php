@@ -80,19 +80,27 @@ class ReactionMailer {
                 continue;
             }
 
+            $topic_title = get_the_title( $topic_id );
+            $topic_link  = get_permalink( $topic_id );
+
             $context = [
-                'topic_title'      => get_the_title( $topic_id ),
-                'topic_link'       => get_permalink( $topic_id ),
+                'topic_title'      => $topic_title,
+                'topic_link'       => $topic_link,
+                'post_title'       => $topic_title,
+                'post_permalink'   => $topic_link,
                 'reaction_author'  => get_the_author_meta( 'display_name', $reaction->post_author ),
                 'reaction_link'    => get_permalink( $reaction ),
-                'reaction_excerpt' => Utils::excerpt( $reaction->ID ),
+                'reaction_excerpt' => Utils::excerpt( $reaction->ID, 20 ),
+                'reply_author'     => get_the_author_meta( 'display_name', $reaction->post_author ),
+                'reply_excerpt'    => Utils::excerpt( $reaction->ID, 20 ),
+                'reply_permalink'  => get_permalink( $reaction ),
                 'site_name'        => get_bloginfo( 'name' ),
                 'site_url'         => home_url(),
             ];
 
             $subject = sprintf(
                 __( 'Nieuwe reactie op %s', 'gem-mailer' ),
-                $context['topic_title'] ?: __( 'een onderwerp', 'gem-mailer' )
+                $topic_title ?: __( 'een onderwerp', 'gem-mailer' )
             );
 
             Email::send_to_users( $user_ids, $subject, $template, $context );
@@ -131,14 +139,19 @@ class ReactionMailer {
             $topic_ids = $topic_rel ? Relations::parents( $topic_rel, $parent_id ) : [];
             $topic_id  = $topic_ids ? (int) $topic_ids[0] : 0;
 
+            $topic_title = $topic_id ? get_the_title( $topic_id ) : '';
+            $topic_link  = $topic_id ? get_permalink( $topic_id ) : '';
+
             $context = [
-                'topic_title'      => $topic_id ? get_the_title( $topic_id ) : '',
-                'topic_link'       => $topic_id ? get_permalink( $topic_id ) : '',
+                'topic_title'      => $topic_title,
+                'topic_link'       => $topic_link,
+                'post_title'       => $topic_title,
+                'post_permalink'   => $topic_link,
                 'reaction_author'  => get_the_author_meta( 'display_name', (int) get_post_field( 'post_author', $parent_id ) ),
-                'reaction_excerpt' => Utils::excerpt( $parent_id ),
+                'reaction_excerpt' => Utils::excerpt( $parent_id, 20 ),
                 'reply_author'     => get_the_author_meta( 'display_name', $reaction->post_author ),
-                'reply_excerpt'    => Utils::excerpt( $reaction->ID ),
-                'reply_link'       => get_permalink( $reaction ),
+                'reply_excerpt'    => Utils::excerpt( $reaction->ID, 20 ),
+                'reply_permalink'  => get_permalink( $reaction ),
                 'site_name'        => get_bloginfo( 'name' ),
                 'site_url'         => home_url(),
             ];
