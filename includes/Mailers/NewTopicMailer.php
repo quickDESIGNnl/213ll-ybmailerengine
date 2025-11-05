@@ -7,21 +7,30 @@ use GemMailer\Support\Settings;
 use GemMailer\Support\Utils;
 use WP_Post;
 use function __;
+use function add_action;
+use function get_bloginfo;
+use function get_post;
+use function get_post_meta;
+use function get_permalink;
+use function get_the_author_meta;
+use function get_the_title;
+use function home_url;
+use function is_wp_error;
+use function time;
+use function update_post_meta;
+use function wp_clear_scheduled_hook;
+use function wp_get_object_terms;
+use function wp_schedule_single_event;
 
 /**
  * Dispatch notifications whenever een nieuw onderwerp gepubliceerd wordt.
  */
 class NewTopicMailer {
-    /**
-     * Queue of post IDs that need notification processing.
-     *
-     * @var array<int,int>
-     */
-    private array $queue = [];
+    private const EVENT_HOOK = 'gem_mailer_process_new_topic';
 
     public function register(): void {
         add_action( 'transition_post_status', [ $this, 'maybe_notify' ], 10, 3 );
-        add_action( 'shutdown', [ $this, 'process_queue' ] );
+        add_action( self::EVENT_HOOK, [ $this, 'process_single' ] );
     }
 
     public function maybe_notify( string $new_status, string $old_status, WP_Post $post ): void {
@@ -34,24 +43,19 @@ class NewTopicMailer {
             return;
         }
 
-        $this->queue[ $post->ID ] = $post->ID;
+        $delay = max( 0, (int) Settings::get( Settings::OPT_THEMA_EMAIL_DELAY, 0 ) );
+
+        wp_clear_scheduled_hook( self::EVENT_HOOK, [ $post->ID ] );
+        wp_schedule_single_event( time() + $delay, self::EVENT_HOOK, [ $post->ID ] );
     }
 
-    public function process_queue(): void {
-        if ( ! $this->queue ) {
+    public function process_single( int $post_id ): void {
+        $post = get_post( $post_id );
+        if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
             return;
         }
 
-        foreach ( $this->queue as $post_id ) {
-            $post = get_post( $post_id );
-            if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
-                continue;
-            }
-
-            $this->notify_post( $post );
-        }
-
-        $this->queue = [];
+        $this->notify_post( $post );
     }
 
     private function notify_post( WP_Post $post ): void {
@@ -64,8 +68,9 @@ class NewTopicMailer {
         $rel_topic_thema = (int) Settings::get( Settings::OPT_THEMA_TOPIC_RELATION, 0 );
         $rel_thema_users = (int) Settings::get( Settings::OPT_THEMA_USER_RELATION, 0 );
         $template        = (string) Settings::get( Settings::OPT_THEMA_EMAIL_TEMPLATE );
+        $subject_tpl     = (string) Settings::get( Settings::OPT_THEMA_EMAIL_SUBJECT );
 
-        if ( ! $rel_thema_users || ! $template ) {
+        if ( ! $rel_thema_users || ! $template || ! $subject_tpl ) {
             return;
         }
 
@@ -103,7 +108,7 @@ class NewTopicMailer {
                 $targets[] = [
                     'lookup_id'        => (int) $thema_id,
                     'context_id'       => (int) $thema_id,
-                    'context_taxonomy' => $taxonomy,
+                    'context_taxonomy' => '',
                 ];
             }
         }
@@ -145,16 +150,16 @@ class NewTopicMailer {
                 'topic_link'    => get_permalink( $post ),
                 'topic_excerpt' => Utils::excerpt( $post->ID ),
                 'topic_author'  => get_the_author_meta( 'display_name', $post->post_author ),
+                'post_title'    => get_the_title( $post ),
+                'post_permalink'=> get_permalink( $post ),
                 'site_name'     => get_bloginfo( 'name' ),
                 'site_url'      => home_url(),
+                'reply_author'  => '',
+                'reply_excerpt' => '',
+                'reply_permalink' => '',
             ];
 
-            $subject = sprintf(
-                __( 'Nieuw onderwerp in %s', 'gem-mailer' ),
-                $thema_title ?: __( 'het forum', 'gem-mailer' )
-            );
-
-            Email::send_to_users( $user_ids, $subject, $template, $context );
+            Email::send_to_users( $user_ids, $subject_tpl, $template, $context );
         }
 
         update_post_meta( $post->ID, Settings::META_TOPIC_SENT, time() );

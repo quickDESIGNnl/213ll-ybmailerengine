@@ -34,17 +34,17 @@ final class Email {
                 continue;
             }
 
-            $message = self::render(
-                $template,
-                array_merge(
-                    $context,
-                    [ 'recipient_name' => $user->display_name ]
-                )
+            $context_for_user = array_merge(
+                $context,
+                [ 'recipient_name' => $user->display_name ]
             );
+
+            $message = self::render( $template, $context_for_user );
+            $subject_line = self::render( $subject, $context_for_user );
 
             wp_mail(
                 $user->user_email,
-                $subject,
+                $subject_line,
                 $message,
                 [ 'Content-Type: text/html; charset=UTF-8' ]
             );
