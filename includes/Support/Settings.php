@@ -112,11 +112,22 @@ final class Settings {
     private static function option_keys( string $key ): array {
         $keys = [ $key ];
 
-        if ( isset( self::LEGACY_KEYS[ $key ] ) ) {
-            $keys[] = self::LEGACY_KEYS[ $key ];
+        $prefixed = 'value' . $key;
+        if ( $prefixed !== $key ) {
+            $keys[] = $prefixed;
         }
 
-        return $keys;
+        if ( isset( self::LEGACY_KEYS[ $key ] ) ) {
+            $legacy_key = self::LEGACY_KEYS[ $key ];
+            $keys[]     = $legacy_key;
+
+            $legacy_prefixed = 'value' . $legacy_key;
+            if ( $legacy_prefixed !== $legacy_key ) {
+                $keys[] = $legacy_prefixed;
+            }
+        }
+
+        return array_values( array_unique( $keys ) );
     }
 
     private static function default_new_topic_template(): string {
