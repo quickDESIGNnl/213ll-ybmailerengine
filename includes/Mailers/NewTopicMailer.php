@@ -50,15 +50,16 @@ class NewTopicMailer {
         }
 
         $topic_cpt    = (string) Settings::get( Settings::OPT_TOPIC_CPT, '' );
-        if ( ! $topic_cpt || $post->post_type !== $topic_cpt ) {
-            $this->log(
-                'Skipping topic transition: post type does not match configured CPT',
-                [
-                    'post_id'   => $post->ID,
-                    'post_type' => $post->post_type,
-                    'expected'  => $topic_cpt,
-                ]
-            );
+        $allowed_cpts = array_filter(
+            array_unique(
+                array_merge(
+                    $topic_cpt ? [ $topic_cpt ] : [],
+                    [ 'onderwerpen' ]
+                )
+            )
+        );
+
+        if ( ! in_array( $post->post_type, $allowed_cpts, true ) ) {
             return;
         }
 
