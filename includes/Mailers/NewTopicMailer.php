@@ -6,6 +6,7 @@ use GemMailer\Support\Relations;
 use GemMailer\Support\Settings;
 use GemMailer\Support\Utils;
 use WP_Post;
+use function __;
 
 /**
  * Dispatch notifications whenever een nieuw onderwerp gepubliceerd wordt.
