@@ -1,6 +1,7 @@
 <?php
 namespace GemMailer;
 
+use GemMailer\Admin\ManualActions;
 use GemMailer\Admin\SettingsPage;
 use GemMailer\Mailers\NewTopicMailer;
 use GemMailer\Mailers\ReactionMailer;
@@ -14,6 +15,7 @@ final class Plugin {
     private SettingsPage $settings;
     private NewTopicMailer $newTopicMailer;
     private ReactionMailer $reactionMailer;
+    private ManualActions $manualActions;
 
     private function __construct() {}
 
@@ -29,9 +31,11 @@ final class Plugin {
         $this->settings        = new SettingsPage();
         $this->newTopicMailer  = new NewTopicMailer();
         $this->reactionMailer  = new ReactionMailer();
+        $this->manualActions   = new ManualActions( $this->newTopicMailer );
 
         $this->settings->register();
         $this->newTopicMailer->register();
         $this->reactionMailer->register();
+        $this->manualActions->register();
     }
 }

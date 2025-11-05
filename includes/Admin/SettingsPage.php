@@ -72,6 +72,16 @@ class SettingsPage {
                 ?>
                 <div class="gem-mailer-tab">
                     <p><?php echo esc_html( $tab['description'] ); ?></p>
+                    <?php if ( 'new-topic' === $active_tab ) :
+                        $base_admin   = admin_url( 'admin.php?page=gem-mailer' );
+                        $test_example = add_query_arg( 'gem_mailer_test_email', rawurlencode( 'voorbeeld@example.com' ), $base_admin );
+                        $process_url  = add_query_arg( 'gem_mailer_process_latest_topic', '1', $base_admin );
+                        ?>
+                        <div class="notice notice-info inline">
+                            <p><?php printf( __( 'Testmail verzenden? Gebruik: %s en vervang het e-mailadres.', 'gem-mailer' ), '<code>' . esc_html( $test_example ) . '</code>' ); ?></p>
+                            <p><?php printf( __( 'Laatste onderwerp verwerken? Bezoek: %s.', 'gem-mailer' ), '<code>' . esc_html( $process_url ) . '</code>' ); ?></p>
+                        </div>
+                    <?php endif; ?>
                     <?php foreach ( $tab['fields'] as $field ) : ?>
                         <div class="gem-mailer-field">
                             <label for="<?php echo esc_attr( $field['option'] ); ?>">
@@ -91,6 +101,24 @@ class SettingsPage {
                                         <?php endforeach; ?>
                                     </select>
                                     <?php
+                                    break;
+                                case 'text':
+                                case 'number':
+                                    $attributes = [
+                                        'type'  => $field['type'],
+                                        'name'  => $field['option'],
+                                        'id'    => $field['option'],
+                                        'value' => $field['type'] === 'number' ? (int) $value : (string) $value,
+                                        'class' => 'regular-text',
+                                    ];
+
+                                    if ( ! empty( $field['attrs'] ) && is_array( $field['attrs'] ) ) {
+                                        foreach ( $field['attrs'] as $attr_key => $attr_value ) {
+                                            $attributes[ $attr_key ] = $attr_value;
+                                        }
+                                    }
+
+                                    echo '<input ' . $this->render_attributes( $attributes ) . ' />';
                                     break;
                                 case 'editor':
                                     $editor_id = $field['option'];
@@ -116,6 +144,12 @@ class SettingsPage {
                                         <?php
                                     endif;
                                     break;
+                                default:
+                                    /**
+                                     * Allow third-parties to render custom field types.
+                                     */
+                                    do_action( 'gem_mailer/settings/render_field', $field, $value );
+                                    break;
                             }
                             ?>
                         </div>
@@ -126,6 +160,26 @@ class SettingsPage {
             </form>
         </div>
         <?php
+    }
+
+    /**
+     * Render an array of HTML attributes into a string.
+     */
+    private function render_attributes( array $attributes ): string {
+        $html = [];
+
+        foreach ( $attributes as $key => $value ) {
+            if ( is_bool( $value ) ) {
+                if ( $value ) {
+                    $html[] = esc_attr( $key );
+                }
+                continue;
+            }
+
+            $html[] = sprintf( '%s="%s"', esc_attr( $key ), esc_attr( (string) $value ) );
+        }
+
+        return implode( ' ', $html );
     }
 
     /**
@@ -163,6 +217,14 @@ class SettingsPage {
                     ],
                     [
                         'type'        => 'select',
+                        'option'      => Settings::OPT_THEMA_CPT,
+                        'label'       => __( 'Thema (CPT)', 'gem-mailer' ),
+                        'description' => __( 'Kies het JetEngine post type dat de hoofdonderwerpen/thema’s bevat.', 'gem-mailer' ),
+                        'choices'     => $post_type_choices,
+                        'sanitize'    => 'sanitize_key',
+                    ],
+                    [
+                        'type'        => 'select',
                         'option'      => Settings::OPT_TOPIC_CPT,
                         'label'       => __( 'Onderwerpen (CPT)', 'gem-mailer' ),
                         'description' => __( 'De custom post type waarin forumonderwerpen/discussies worden opgeslagen. Deze instelling wordt gedeeld met de tab voor reacties.', 'gem-mailer' ),
@@ -194,6 +256,13 @@ class SettingsPage {
                         'sanitize'    => 'absint',
                     ],
                     [
+                        'type'        => 'text',
+                        'option'      => Settings::OPT_THEMA_EMAIL_SUBJECT,
+                        'label'       => __( 'E-mail onderwerp', 'gem-mailer' ),
+                        'description' => __( 'Onderwerpregel van de e-mail. Tags zijn ook hier beschikbaar.', 'gem-mailer' ),
+                        'default'     => Settings::default( Settings::OPT_THEMA_EMAIL_SUBJECT ),
+                    ],
+                    [
                         'type'        => 'editor',
                         'option'      => Settings::OPT_THEMA_EMAIL_TEMPLATE,
                         'label'       => __( 'E-mailtemplate: nieuw onderwerp', 'gem-mailer' ),
@@ -201,16 +270,27 @@ class SettingsPage {
                         'default'     => Settings::default( Settings::OPT_THEMA_EMAIL_TEMPLATE ),
                         'tags'        => [
                             '{{recipient_name}}' => __( 'Naam van de ontvanger.', 'gem-mailer' ),
-                            '{{thema_title}}'    => __( 'Titel van het thema.', 'gem-mailer' ),
-                            '{{thema_link}}'     => __( 'Permalink naar het thema.', 'gem-mailer' ),
-                            '{{topic_title}}'    => __( 'Titel van het onderwerp.', 'gem-mailer' ),
-                            '{{topic_link}}'     => __( 'Permalink naar het onderwerp.', 'gem-mailer' ),
-                            '{{topic_excerpt}}'  => __( 'Samenvatting van het onderwerp.', 'gem-mailer' ),
-                            '{{topic_author}}'   => __( 'Naam van de auteur.', 'gem-mailer' ),
+                            '{{post_title}}'     => __( 'Titel van het onderwerp.', 'gem-mailer' ),
+                            '{{post_permalink}}' => __( 'Link naar het onderwerp.', 'gem-mailer' ),
                             '{{site_name}}'      => __( 'Naam van de site.', 'gem-mailer' ),
                             '{{site_url}}'       => __( 'URL van de site.', 'gem-mailer' ),
+                            '{{reply_author}}'   => __( 'Naam van de auteur van de nieuwste reactie.', 'gem-mailer' ),
+                            '{{reply_excerpt}}'  => __( 'Eerste 20 woorden van de reactie.', 'gem-mailer' ),
+                            '{{reply_permalink}}'=> __( 'Directe link naar de reactie.', 'gem-mailer' ),
                         ],
                         'sanitize'    => 'wp_kses_post',
+                    ],
+                    [
+                        'type'        => 'number',
+                        'option'      => Settings::OPT_THEMA_DELAY,
+                        'label'       => __( 'Vertraging (seconden)', 'gem-mailer' ),
+                        'description' => __( 'Aantal seconden wachttijd voordat de e-mail wordt verstuurd, zodat een auteur nog kan aanpassen.', 'gem-mailer' ),
+                        'default'     => 0,
+                        'attrs'       => [
+                            'min'  => 0,
+                            'step' => 1,
+                        ],
+                        'sanitize'    => 'absint',
                     ],
                 ],
             ],
@@ -304,7 +384,7 @@ class SettingsPage {
                             '{{reaction_excerpt}}'=> __( 'Samenvatting van de oorspronkelijke reactie.', 'gem-mailer' ),
                             '{{reply_author}}'    => __( 'Naam van de reply-auteur.', 'gem-mailer' ),
                             '{{reply_excerpt}}'   => __( 'Samenvatting van de reply.', 'gem-mailer' ),
-                            '{{reply_link}}'      => __( 'Permalink naar de reply.', 'gem-mailer' ),
+                            '{{reply_permalink}}' => __( 'Permalink naar de reply.', 'gem-mailer' ),
                             '{{site_name}}'       => __( 'Naam van de site.', 'gem-mailer' ),
                             '{{site_url}}'        => __( 'URL van de site.', 'gem-mailer' ),
                         ],
