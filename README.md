@@ -12,11 +12,10 @@ ini_set('error_log', '/path/to/gem-mailer.log');
 
 ## Testmail versturen
 
-Open in WordPress de beheerpagina **Settings → GEM Mailer** (`/wp-admin/admin.php?page=gem-mailer`). Bovenaan de pagina staan drie knoppen om een testmail naar je eigen beheerdersadres te sturen:
+Open in WordPress de beheerpagina **Settings → GEM Mailer** (`/wp-admin/admin.php?page=gem-mailer`). Bovenaan de pagina staan twee knoppen om een testmail naar je eigen beheerdersadres te sturen:
 
 - `wp-admin/admin-post.php?action=gem_mailer_send_test&type=new-topic` – test voor een nieuw onderwerp
-- `wp-admin/admin-post.php?action=gem_mailer_send_test&type=topic-reaction` – test voor een reactie op een onderwerp
-- `wp-admin/admin-post.php?action=gem_mailer_send_test&type=reaction-reply` – test voor een reactie op een reactie
+- `wp-admin/admin-post.php?action=gem_mailer_send_test&type=reaction` – test voor een reactie in een onderwerp
 
 WordPress voegt automatisch een beveiligingsnonce aan deze links toe, zodat je de knoppen rechtstreeks vanuit de instellingenpagina kunt gebruiken.
 

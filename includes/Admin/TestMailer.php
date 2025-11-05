@@ -33,8 +33,7 @@ class TestMailer {
      */
     private array $types = [
         'new-topic',
-        'topic-reaction',
-        'reaction-reply',
+        'reaction',
     ];
 
     public function register(): void {
@@ -64,15 +63,15 @@ class TestMailer {
             $this->redirect( 'error', 'unknown-type', $type );
         }
 
-        [ $subject, $template, $context ] = $payload;
+        [ $subject_tpl, $template, $context ] = $payload;
 
-        $message = Email::render(
-            $template,
-            array_merge(
-                $context,
-                [ 'recipient_name' => $user->display_name ]
-            )
+        $context_with_user = array_merge(
+            $context,
+            [ 'recipient_name' => $user->display_name ]
         );
+
+        $message = Email::render( $template, $context_with_user );
+        $subject = Email::render( $subject_tpl, $context_with_user );
 
         wp_mail(
             $user->user_email,
@@ -93,6 +92,7 @@ class TestMailer {
         switch ( $type ) {
             case 'new-topic':
                 $template = (string) Settings::get( Settings::OPT_THEMA_EMAIL_TEMPLATE );
+                $subject  = (string) Settings::get( Settings::OPT_THEMA_EMAIL_SUBJECT );
                 $context  = [
                     'thema_title'   => __( 'Voorbeeld thema', 'gem-mailer' ),
                     'thema_link'    => home_url( '/forum/thema/voorbeeld' ),
@@ -100,51 +100,36 @@ class TestMailer {
                     'topic_link'    => home_url( '/forum/onderwerpen/voorbeeld' ),
                     'topic_excerpt' => __( 'Dit is een voorbeeldtekst voor een nieuw forumonderwerp.', 'gem-mailer' ),
                     'topic_author'  => __( 'Forumtester', 'gem-mailer' ),
+                    'post_title'    => __( 'Voorbeeld onderwerp', 'gem-mailer' ),
+                    'post_permalink'=> home_url( '/forum/onderwerpen/voorbeeld' ),
                     'site_name'     => get_bloginfo( 'name' ),
                     'site_url'      => home_url(),
+                    'reply_author'  => '',
+                    'reply_excerpt' => '',
+                    'reply_permalink' => '',
                 ];
-
-                $subject = sprintf(
-                    __( '[Test] Nieuw onderwerp in %s', 'gem-mailer' ),
-                    $context['thema_title']
-                );
 
                 return [ $subject, $template, $context ];
 
-            case 'topic-reaction':
-                $template = (string) Settings::get( Settings::OPT_TOPIC_EMAIL_TEMPLATE );
+            case 'reaction':
+                $template = (string) Settings::get( Settings::OPT_REACTION_EMAIL_TEMPLATE );
                 $context  = [
                     'topic_title'      => __( 'Voorbeeld onderwerp', 'gem-mailer' ),
                     'topic_link'       => home_url( '/forum/onderwerpen/voorbeeld' ),
                     'reaction_author'  => __( 'Reactie auteur', 'gem-mailer' ),
                     'reaction_link'    => home_url( '/forum/reacties/voorbeeld' ),
                     'reaction_excerpt' => __( 'Dit is een voorbeeld van een reactie binnen het onderwerp.', 'gem-mailer' ),
+                    'post_title'       => __( 'Voorbeeld onderwerp', 'gem-mailer' ),
+                    'post_permalink'   => home_url( '/forum/onderwerpen/voorbeeld' ),
+                    'reply_author'     => __( 'Reactie auteur', 'gem-mailer' ),
+                    'reply_excerpt'    => __( 'Dit is een voorbeeld van een reactie binnen het onderwerp.', 'gem-mailer' ),
+                    'reply_link'       => home_url( '/forum/reacties/voorbeeld' ),
+                    'reply_permalink'  => home_url( '/forum/reacties/voorbeeld' ),
                     'site_name'        => get_bloginfo( 'name' ),
                     'site_url'         => home_url(),
                 ];
 
-                $subject = sprintf(
-                    __( '[Test] Nieuwe reactie op %s', 'gem-mailer' ),
-                    $context['topic_title']
-                );
-
-                return [ $subject, $template, $context ];
-
-            case 'reaction-reply':
-                $template = (string) Settings::get( Settings::OPT_REACTION_EMAIL_TPL );
-                $context  = [
-                    'topic_title'      => __( 'Voorbeeld onderwerp', 'gem-mailer' ),
-                    'topic_link'       => home_url( '/forum/onderwerpen/voorbeeld' ),
-                    'reaction_author'  => __( 'Auteur van oorspronkelijke reactie', 'gem-mailer' ),
-                    'reaction_excerpt' => __( 'Voorbeeldtekst van de oorspronkelijke reactie.', 'gem-mailer' ),
-                    'reply_author'     => __( 'Auteur van de reply', 'gem-mailer' ),
-                    'reply_excerpt'    => __( 'Dit is een voorbeeldtekst van de reply.', 'gem-mailer' ),
-                    'reply_link'       => home_url( '/forum/reacties/reply-voorbeeld' ),
-                    'site_name'        => get_bloginfo( 'name' ),
-                    'site_url'         => home_url(),
-                ];
-
-                $subject = __( '[Test] Nieuw antwoord op je reactie', 'gem-mailer' );
+                $subject = __( '[Test] Nieuwe reactie op {{post_title}}', 'gem-mailer' );
 
                 return [ $subject, $template, $context ];
         }
