@@ -16,12 +16,12 @@ final class Settings {
     public const OPT_THEMA_EMAIL_SUBJECT   = 'gem_mailer_settings_mail_titel_o';
     public const OPT_THEMA_EMAIL_DELAY     = 'gem_mailer_settings_vertraging_nieuw_onderwerp';
 
-    public const OPT_TOPIC_CPT             = 'gem_mailer_settings_gem_topic_cpt';
+    public const OPT_TOPIC_CPT             = 'gem_mailer_settings_onderwerpen-gem-cpt';
     public const OPT_TOPIC_USER_RELATION   = 'gem_mailer_settings_gem_topic_user_relation';
-    public const OPT_TOPIC_REACTION_REL    = 'gem_mailer_settings_gem_topic_reactie_relation';
-    public const OPT_TOPIC_EMAIL_TEMPLATE  = 'gem_mailer_settings_gem_topic_email';
+    public const OPT_TOPIC_REACTION_REL    = 'gem_mailer_settings_gem_reactie_onderwerp_relation';
+    public const OPT_TOPIC_EMAIL_TEMPLATE  = 'gem_mailer_settings_reacties_email';
 
-    public const OPT_REACTION_CPT          = 'gem_mailer_settings_gem_reactie_cpt';
+    public const OPT_REACTION_CPT          = 'gem_mailer_settings_reacties-gem-cpt';
     public const OPT_REACTION_USER_REL     = 'gem_mailer_settings_gem_reactie_user_relation';
     public const OPT_REACTION_REPLY_REL    = 'gem_mailer_settings_gem_reactie_reactie_relation';
     public const OPT_REACTION_EMAIL_TPL    = 'gem_mailer_settings_gem_reactie_email';
@@ -29,6 +29,13 @@ final class Settings {
     public const META_TOPIC_SENT           = '_gem_mailer_topic_notified';
     public const META_REACTION_SENT        = '_gem_mailer_reaction_topic_notified';
     public const META_REPLY_SENT           = '_gem_mailer_reaction_reply_notified';
+
+    private const LEGACY_KEYS = [
+        self::OPT_TOPIC_CPT            => 'gem_mailer_settings_gem_topic_cpt',
+        self::OPT_TOPIC_REACTION_REL   => 'gem_mailer_settings_gem_topic_reactie_relation',
+        self::OPT_TOPIC_EMAIL_TEMPLATE => 'gem_mailer_settings_gem_topic_email',
+        self::OPT_REACTION_CPT         => 'gem_mailer_settings_gem_reactie_cpt',
+    ];
 
     private function __construct() {}
 
@@ -63,13 +70,53 @@ final class Settings {
             $default = self::default( $key );
         }
 
-        $value = get_option( $key, $default );
+        $missing = new \stdClass();
+        $value   = self::get_option_value( $key, $missing );
+
+        if ( $value === $missing ) {
+            $value = $default ?? self::default( $key );
+        }
 
         if ( is_array( $value ) && array_key_exists( 0, $value ) ) {
             return $value[0];
         }
 
         return $value;
+    }
+
+    /**
+     * Retrieve an option while respecting legacy keys.
+     *
+     * @param mixed $missing Sentinel used to detect missing values.
+     *
+     * @return mixed
+     */
+    private static function get_option_value( string $key, $missing ) {
+        $keys = self::option_keys( $key );
+
+        foreach ( $keys as $candidate ) {
+            $value = get_option( $candidate, $missing );
+            if ( $value !== $missing ) {
+                return $value;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Return all option keys (new + legacy) that should be checked for a value.
+     *
+     * @return string[]
+     */
+    private static function option_keys( string $key ): array {
+        $keys = [ $key ];
+
+        if ( isset( self::LEGACY_KEYS[ $key ] ) ) {
+            $keys[] = self::LEGACY_KEYS[ $key ];
+        }
+
+        return $keys;
     }
 
     private static function default_new_topic_template(): string {
@@ -113,3 +160,4 @@ final class Settings {
         );
     }
 }
+
